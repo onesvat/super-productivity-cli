@@ -84,6 +84,12 @@ def today_str() -> str:
 def now_ms() -> int:
     return int(time.time() * 1000)
 
+def fmt_time(ms_utc: int) -> str:
+    """Format UTC millisecond timestamp to local HH:MM string."""
+    if not ms_utc: return ""
+    dt = datetime.fromtimestamp(ms_utc / 1000.0)
+    return dt.strftime("%H:%M")
+
 # ─── Data loading / saving / syncing ──────────────────────────────────────────
 
 def sync_download():
@@ -259,16 +265,22 @@ def cmd_status(args):
     # Today's tasks
     print(f"  {bold('Today\'s Tasks:')}")
     if today_task_ids:
-        for tid in today_task_ids:
-            task = tasks.get(tid)
-            if not task: continue
+        # Sort tasks: those with dueWithTime first (sorted by time), then the rest
+        today_tasks_obj = [tasks.get(tid) for tid in today_task_ids if tasks.get(tid)]
+        today_tasks_obj.sort(key=lambda t: t.get("dueWithTime", float('inf')))
+
+        for task in today_tasks_obj:
             done_mark = green("✓") if task.get("isDone") else yellow("○")
             spent_today = task.get("timeSpentOnDay", {}).get(today, 0)
             est = task.get("timeEstimate", 0)
+            
+            due_ms = task.get("dueWithTime")
+            time_icon = yellow(f"⏰ {fmt_time(due_ms)} ") if due_ms else ""
+
             time_info = ""
             if spent_today or est:
                 time_info = dim(f" [{fmt_duration(spent_today)}/{fmt_duration(est)}]")
-            print(f"    {done_mark} {task['title']}{time_info}")
+            print(f"    {time_icon}{done_mark} {task['title']}{time_info}")
     else:
         print(f"    {dim('No tasks tagged for today')}")
 
@@ -315,14 +327,21 @@ def cmd_task_list(args):
         print(dim("No tasks found."))
         return
 
+    # If --today flag is used, sort by due time for a better day plan view
+    if args.today:
+        rows.sort(key=lambda t: t.get("dueWithTime", float('inf')))
+
     print()
     for task in rows:
         tid = task["id"]
         is_today = tid in today_task_ids
         is_done  = task.get("isDone")
         
+        due_ms = task.get("dueWithTime")
+        time_icon = yellow(f"⏰ {fmt_time(due_ms)} ") if due_ms and is_today else ""
+
         done_icon  = green("✓") if is_done else yellow("○")
-        today_icon = cyan("🌤") + " " if is_today else "   "
+        today_icon = cyan("🌤") + " " + time_icon if is_today else "   "
         pname = project_name(data, task.get("projectId", ""))
 
         spent_today = task.get("timeSpentOnDay", {}).get(today, 0)
