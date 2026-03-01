@@ -12,6 +12,7 @@ import re
 from datetime import date, datetime
 
 # ─── Configuration ────────────────────────────────────────────────────────────
+VERSION = "0.1.2"
 
 if os.environ.get("SP_CLI_DEV_MODE") == "1" or os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sync-data.extracted.json")):
     CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -123,6 +124,18 @@ def fail(args, message: str):
         print(red(message))
     raise SystemExit(1)
 
+
+def confirm(args, message: str) -> bool:
+    if getattr(args, "yes", False):
+        return True
+    if is_machine_mode(args):
+        return False
+    try:
+        ans = input(f"{yellow('?')} {message} {dim('[y/N]')} ").lower()
+        return ans == "y"
+    except (EOFError, KeyboardInterrupt):
+        return False
+
 # ─── Data loading / saving / syncing ──────────────────────────────────────────
 
 def sync_download():
@@ -210,15 +223,55 @@ def get_project_by_name(data, name: str):
     for pid, proj in get_projects(data).items():
         if proj.get("title", "").lower() == name.lower():
             return pid, proj
+    if name.lower() == "inbox":
+        return "INBOX_PROJECT", get_projects(data).get("INBOX_PROJECT", {"title": "Inbox"})
     return None, None
+
+
+def resolve_project_id(data, s: str) -> str:
+    """Resolve project ID from ID or name."""
+    if not s: return "INBOX_PROJECT"
+    # Try ID first
+    if s in get_projects(data):
+        return s
+    # Try Name
+    pid, _ = get_project_by_name(data, s)
+    if pid:
+        return pid
+    # Fallback to Inbox if nothing found
+    if s.lower() == "inbox":
+        return "INBOX_PROJECT"
+    return s
 
 def project_name(data, project_id: str) -> str:
     proj = get_projects(data).get(project_id, {})
     return proj.get("title", project_id or "—")
 
 
+def get_task_by_name(data, query: str):
+    for tid in get_task_ids(data):
+        task = get_tasks(data).get(tid)
+        if task and matches_query(task.get("title", ""), query):
+            return tid, task
+    return None, None
+
+
+def resolve_task_id(data, s: str) -> str:
+    """Resolve task ID from ID, title or substring."""
+    if not s: return None
+    # Try ID first
+    if s in get_tasks(data):
+        return s
+    # Try Name/Substring
+    tid, _ = get_task_by_name(data, s)
+    if tid:
+        return tid
+    return s
+
+
 def get_task_or_exit(data, task_id: str, args):
-    task = get_tasks(data).get(task_id)
+    resolved_id = resolve_task_id(data, task_id)
+    task = get_tasks(data).get(resolved_id)
     if not task:
         fail(args, f"Task '{task_id}' not found")
     return task
@@ -231,8 +284,31 @@ def get_project_or_exit(data, project_id: str, args):
     return project
 
 
+def get_counter_by_name(data, query: str):
+    counters = get_counters(data)
+    for cid in get_counter_ids(data):
+        counter = counters.get(cid)
+        if counter and matches_query(counter.get("title", ""), query):
+            return cid, counter
+    return None, None
+
+
+def resolve_counter_id(data, s: str) -> str:
+    """Resolve counter ID from ID, title or substring."""
+    if not s: return None
+    # Try ID first
+    if s in get_counters(data):
+        return s
+    # Try Name/Substring
+    cid, _ = get_counter_by_name(data, s)
+    if cid:
+        return cid
+    return s
+
+
 def get_counter_or_exit(data, counter_id: str, args):
-    counter = get_counters(data).get(counter_id)
+    resolved_id = resolve_counter_id(data, counter_id)
+    counter = get_counters(data).get(resolved_id)
     if not counter:
         fail(args, f"Counter '{counter_id}' not found")
     return counter
@@ -478,9 +554,9 @@ def cmd_task_list(args):
 
     filter_pid = None
     if args.project:
-        if args.project not in get_projects(data):
+        filter_pid = resolve_project_id(data, args.project)
+        if filter_pid not in get_projects(data) and filter_pid != "INBOX_PROJECT":
             fail(args, f"Project '{args.project}' not found")
-        filter_pid = args.project
 
     from datetime import timedelta
     tmrw_str = (date.today() + timedelta(days=1)).isoformat()
@@ -594,10 +670,9 @@ def cmd_task_view(args):
 def cmd_task_add(args):
     data = load_data()
     project_id = "INBOX_PROJECT"
-    if args.project:
-        if args.project not in get_projects(data):
-            fail(args, f"Project '{args.project}' not found")
-        project_id = args.project
+    project_id = resolve_project_id(data, args.project or "Inbox")
+    if project_id not in get_projects(data) and project_id != "INBOX_PROJECT":
+        fail(args, f"Project '{args.project}' not found")
 
     estimate_ms = 0
     if args.estimate:
@@ -652,16 +727,17 @@ def cmd_task_edit(args):
         except ValueError as e:
             fail(args, str(e))
     if args.project:
-        get_project_or_exit(data, args.project, args)
+        new_pid = resolve_project_id(data, args.project)
+        get_project_or_exit(data, new_pid, args)
         old_pid = task.get("projectId")
         if old_pid and old_pid in data["state"]["project"]["entities"]:
             old_task_ids = data["state"]["project"]["entities"][old_pid].get("taskIds", [])
             if task["id"] in old_task_ids:
                 old_task_ids.remove(task["id"])
-        new_task_ids = data["state"]["project"]["entities"][args.project].setdefault("taskIds", [])
+        new_task_ids = data["state"]["project"]["entities"][new_pid].setdefault("taskIds", [])
         if task["id"] not in new_task_ids:
             new_task_ids.append(task["id"])
-        task["projectId"] = args.project
+        task["projectId"] = new_pid
         task["modified"] = now_ms()
     if args.title or args.estimate or args.project:
         save_data(data)
@@ -813,8 +889,8 @@ def cmd_task_plan(args):
 def cmd_task_move(args):
     data = load_data()
     task = get_task_or_exit(data, args.id, args)
-    new_proj = get_project_or_exit(data, args.project, args)
-    new_pid = args.project
+    new_pid = resolve_project_id(data, args.project)
+    new_proj = get_project_or_exit(data, new_pid, args)
 
     old_pid = task.get("projectId")
     if old_pid and old_pid in data["state"]["project"]["entities"]:
@@ -835,8 +911,8 @@ def cmd_task_move(args):
 def cmd_task_delete(args):
     data = load_data()
     task = get_task_or_exit(data, args.id, args)
-    if not args.yes:
-        fail(args, "Refusing delete without --yes")
+    if not confirm(args, f"Delete task '{task['title']}'?"):
+        fail(args, "Deletion cancelled")
 
     tid = task["id"]
 
@@ -883,7 +959,8 @@ def cmd_project_list(args):
 
 def cmd_project_view(args):
     data = load_data()
-    project = get_project_or_exit(data, args.id, args)
+    project_id = resolve_project_id(data, args.id)
+    project = get_project_or_exit(data, project_id, args)
     if is_machine_mode(args):
         emit(args, serialize_project(project, full=args.full))
         return
@@ -1126,8 +1203,8 @@ def cmd_counter_toggle(args):
 def cmd_counter_delete(args):
     data = load_data()
     counter = get_counter_or_exit(data, args.id, args)
-    if not args.yes:
-        fail(args, "Refusing delete without --yes")
+    if not confirm(args, f"Delete counter '{counter['title']}'?"):
+        fail(args, "Deletion cancelled")
 
     cid = counter["id"]
 
@@ -1165,6 +1242,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         parents=[output_parent],
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
     sub = parser.add_subparsers(dest="endpoint")
 
     # sp status
