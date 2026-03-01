@@ -8,6 +8,7 @@ import base64
 import gzip
 import uuid
 import time
+import re
 from datetime import date, datetime
 
 # ─── Configuration ────────────────────────────────────────────────────────────
@@ -273,56 +274,64 @@ def serialize_counter(counter, full=False):
 
 # ─── Matching ─────────────────────────────────────────────────────────────────
 
-def find_tasks(data, query: str, include_done=False, only_today=False):
+def matches_query(value: str, query: str) -> bool:
+    value_l = value.lower()
+    query_l = query.lower()
+    if "*" not in query_l:
+        return query_l in value_l
+    wildcard_pattern = "^" + re.escape(query_l).replace(r"\*", ".*") + "$"
+    return re.match(wildcard_pattern, value_l) is not None
+
+
+def cmd_task_search(args):
+    data = load_data()
+    rows = []
     tasks = get_tasks(data)
-    q = query.lower()
-    today_tag = get_tags(data).get(TODAY_TAG_ID, {})
-    today_task_ids = set(today_tag.get("taskIds", []))
+    for tid in get_task_ids(data):
+        task = tasks.get(tid)
+        if not task:
+            continue
+        if matches_query(task.get("title", ""), args.query):
+            rows.append(task)
 
-    results = []
-    for tid, task in tasks.items():
-        if not include_done and task.get("isDone"): continue
-        if only_today and tid not in today_task_ids: continue
-        if q in task.get("title", "").lower():
-            results.append(task)
-    return results
+    if is_machine_mode(args):
+        emit(args, [serialize_task(data, t, full=args.full) for t in rows])
+        return
 
-def pick_task(data, query: str, include_done=False) -> dict | None:
-    results = find_tasks(data, query, include_done=include_done)
-    if not results:
-        print(red(f"No task found matching '{query}'"))
-        return None
-    if len(results) == 1:
-        return results[0]
-    print(yellow(f"Multiple matches for '{query}':"))
-    for i, t in enumerate(results, 1):
-        pname = project_name(data, t.get("projectId", ""))
-        print(f"  {bold(str(i))}. {t['title']} {dim(f'[{pname}]')}")
-    try:
-        choice = int(input("Select number: ").strip())
-        return results[choice - 1]
-    except (ValueError, IndexError):
-        print(red("Invalid selection."))
-        return None
+    if not rows:
+        print(dim("No matching tasks found."))
+        return
 
-def pick_counter(data, query: str):
-    q = query.lower()
-    results = [c for c in get_counters(data).values() if q in c.get("title", "").lower()]
-    if not results:
-        print(red(f"No counter found matching '{query}'"))
-        return None
-    if len(results) == 1:
-        return results[0]
-    print(yellow(f"Multiple counters found for '{query}':"))
-    for i, c in enumerate(results, 1):
-        ctype = c.get("type", "Unknown")
-        print(f"  {bold(str(i))}. {c['title']} {dim(f'[{ctype}]')}")
-    try:
-        choice = int(input("Select number: ").strip())
-        return results[choice - 1]
-    except (ValueError, IndexError):
-        print(red("Invalid selection."))
-        return None
+    for task in rows:
+        tid = task.get("id")
+        title = task.get("title", "")
+        pname = project_name(data, task.get("projectId", ""))
+        print(f"{bold(tid)}  {title}  {dim(f'[{pname}]')}")
+
+
+def cmd_counter_search(args):
+    data = load_data()
+    rows = []
+    counters = get_counters(data)
+    for cid in get_counter_ids(data):
+        counter = counters.get(cid)
+        if not counter:
+            continue
+        if matches_query(counter.get("title", ""), args.query):
+            rows.append(counter)
+
+    if is_machine_mode(args):
+        emit(args, [serialize_counter(c, full=args.full) for c in rows])
+        return
+
+    if not rows:
+        print(dim("No matching counters found."))
+        return
+
+    for counter in rows:
+        cid = counter.get("id")
+        title = counter.get("title", "")
+        print(f"{bold(cid)}  {title}")
 
 # ─── Global Commands ──────────────────────────────────────────────────────────
 
@@ -1178,6 +1187,10 @@ def main():
     tv_p = task_sub.add_parser("view", help="View task by ID", parents=[output_parent])
     tv_p.add_argument("id", help="Task ID")
 
+    # task search
+    ts_p = task_sub.add_parser("search", help="Search tasks by title (substring or * wildcard)", parents=[output_parent])
+    ts_p.add_argument("query", help="Query text, supports '*' wildcard")
+
     # task add
     ta_p = task_sub.add_parser("add", help="Add task", parents=[output_parent])
     ta_p.add_argument("title", help="Task title")
@@ -1240,6 +1253,9 @@ def main():
 
     cnt_sub.add_parser("list", help="List counters", parents=[output_parent])
 
+    csearch_p = cnt_sub.add_parser("search", help="Search counters by title (substring or * wildcard)", parents=[output_parent])
+    csearch_p.add_argument("query", help="Query text, supports '*' wildcard")
+
     cadd_p = cnt_sub.add_parser("add", help="Add counter", parents=[output_parent])
     cadd_p.add_argument("title", help="Title")
     cadd_p.add_argument("--type", choices=["ClickCounter", "StopWatch"], default="ClickCounter", help="Type of counter")
@@ -1291,15 +1307,18 @@ def main():
         ("status", None),
         ("task", "list"),
         ("task", "view"),
+        ("task", "search"),
         ("project", "list"),
         ("project", "view"),
-        ("counter", "list")
+        ("counter", "list"),
+        ("counter", "search"),
     }
 
     dispatch = {
         ("status", None): cmd_status,
         ("task", "list"): cmd_task_list,
         ("task", "view"): cmd_task_view,
+        ("task", "search"): cmd_task_search,
         ("task", "add"): cmd_task_add,
         ("task", "edit"): cmd_task_edit,
         ("task", "done"): cmd_task_done,
@@ -1312,6 +1331,7 @@ def main():
         ("project", "list"): cmd_project_list,
         ("project", "view"): cmd_project_view,
         ("counter", "list"): cmd_counter_list,
+        ("counter", "search"): cmd_counter_search,
         ("counter", "add"): cmd_counter_add,
         ("counter", "edit"): cmd_counter_edit,
         ("counter", "log"): cmd_counter_log,

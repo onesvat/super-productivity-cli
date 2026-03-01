@@ -1,179 +1,92 @@
 # Super Productivity CLI (`sp.py`)
 
-A fast, lightweight, and powerful Command Line Interface for [Super Productivity](https://super-productivity.com/) written in Python. It directly reads, modifies, and synchronizes your Super Productivity data file natively, allowing for quick terminal-based task and time management that immediately reflects in your main GUI app.
+Command line interface for Super Productivity data with local file edits and optional `rclone` sync.
 
-## ☁️ Cloud Sync & Requirements (Read First!)
+## Requirements
 
-To use this CLI effectively with cloud sync, you **must have Dropbox Sync enabled** in your Super Productivity app and **`rclone` installed** on your system.
+- Python 3
+- `rclone` configured with a remote named `dropbox` (for cloud sync)
+- Super Productivity Dropbox sync enabled
 
-**1. Install `rclone`**
-- **macOS/Linux:** `sudo -v ; curl https://rclone.org/install.sh | sudo bash`
-- **Windows:** Download from [rclone.org](https://rclone.org/downloads/) or run `winget install Rclone.Rclone`
-
-**2. Configure Dropbox remote**
-Run `rclone config`, create a new remote, and name it **exactly** `dropbox`. Follow the interactive prompts to authorize it.
-
-**3. Python 3.x** is required to run the script.
-
-**4. Install the CLI**  
-For standalone CLI tools like this, we recommend using **pipx**:
-```bash
-pipx install super-productivity-cli
-```
-Alternatively, using standard pip:
-```bash
-pip install super-productivity-cli
-```
-Now you can simply use the `sp` command from anywhere!
-
-*(Note: The CLI config path defaults to `~/.config/super-productivity-cli` for your data and state configs.)*
-
----
-
-## Development
-
-If you want to contribute or run from source:
-
-1. Clone the repo:
-   ```bash
-   git clone https://github.com/onur/super-productivity-cli
-   cd super-productivity-cli
-   ```
-2. Install in editable mode:
-   ```bash
-   pip install -e .
-   ```
-   *Tip: We use [Hatch](https://hatch.pypa.io/) as our build backend.*
-
-## Publishing
-
-This project uses **Trusted Publishing** via GitHub Actions. To release a new version:
-1. Update the version in `pyproject.toml`.
-2. Push a new git tag (e.g., `git tag v0.1.0 && git push --tags`).
-3. GitHub Actions will automatically build and publish the package to PyPI.
-
----
-
-
-## Capabilities
-
-- **Full Native Compatibility:** Edits `sync-data.json` directly via standard JSON encoding, meaning tasks and time tracking are fully compatible with the official Super Productivity app.
-- **Resource Endpoints:** Cleanly categorized commands (`sp status`, `sp task`, `sp project`, `sp counter`).
-- **Cloud Sync Support:** Built-in integration with `rclone` for syncing your tasks to Dropbox before and after execution.
-- **Graceful Offline Fallback:** Uninterrupted usage if cloud sync fails or if `rclone` isn't configured.
-- **Advanced Counters (`simpleCounter`):** Full control over Click Counters and Stopwatches, including daily/weekly streak tracking and countdown timers.
-- **Fuzzy Matching:** Smart substring-based searching for easily referring to tasks without knowing full titles.
-
----
-## Usage
-
-The CLI behaves just like `git` or `docker`. You pass an endpoint (`task`, `project`, `counter`) followed by a verb (`add`, `edit`, `list`, `delete`, etc.). 
-
-### 📊 Global Status
-
-See a quick daily summary of active tracking, unticked tasks for today, total time spent, and project distribution.
+## CLI Structure
 
 ```bash
-sp status
+$ sp --help
+usage: sp [-h] [--json | --ndjson] [--full] {status,task,project,counter} ...
+
+Super Productivity CLI
+
+positional arguments:
+  {status,task,project,counter}
+    status              Show today's summary
+    task                Task management commands
+    project             Project management
+    counter             Counter management
+
+options:
+  -h, --help            show this help message and exit
+  --json                Emit JSON output
+  --ndjson              Emit NDJSON output
+  --full                Include full entity payload in JSON/NDJSON output
 ```
 
-### 📋 Task Management (`sp task`)
+Task and counter subcommands:
 
-```bash
-# List all tasks
-sp task list
+- `sp task --help` includes `list, view, search, add, edit, done, estimate, log, today, plan, move, delete`
+- `sp counter --help` includes `list, search, add, edit, log, toggle, delete`
 
-# Filter tasks
-sp task list --today
-sp task list --done
-sp task list --project "Work"
+## ID-Based Operations
 
-# Setup tasks
-sp task add "Write weekly report"
-sp task add "Fix bug #123" --project "Inbox" --estimate 45m
+All mutating commands use IDs, not fuzzy title matching.
 
-# Edit or Modify
-sp task edit "weekly report" --title "Write final report"
-sp task plan "report" 2026-03-05 14:30 -e 2h
-sp task estimate "report" 2h
+- Task by ID: `view`, `edit`, `done`, `estimate`, `log`, `today`, `plan`, `move`, `delete`
+- Counter by ID: `edit`, `log`, `toggle`, `delete`
 
-# Log Time & Status Updates
-sp task log "report" 1h30m         # Log 1 hour and 30 minutes
-sp task log "report" 2h --date 2026-02-28 # Log time for a past date
-sp task done "bug"                 # Mask task as done
-sp task today "report"             # Toggle task on Today's list
-sp task move "bug" --project Work  # Move task to another project
+Use `list` or `search` first to find IDs.
 
-# Delete
-sp task delete "bug"
-```
+## Output Flags
 
-*Note: `sp task start` and `sp task stop` are not provided as active session states are stored client-side in the Super Productivity frontend.*
+- `--json`: JSON array/object output for scripts
+- `--ndjson`: one JSON object per line
+- `--full`: include full entity payload (primarily useful with JSON/NDJSON)
 
-### ⏳ Counters & Habits (`sp counter`)
+Examples:
 
-Supports two native types: **StopWatches** (tracking durations) and **ClickCounters** (tracking counts/habits).
+- `sp task list --json`
+- `sp status --ndjson`
+- `sp counter list --json --full`
 
-```bash
-# List all counters
-sp counter list
+## Search Commands
 
-# Quickly toggle a state:
-sp counter toggle "water"       # Increments a ClickCounter (+1)
-sp counter toggle "stand desk"  # Starts or Pauses a StopWatch
+Search supports:
 
-# Manually log values
-sp counter log "water" 5
-sp counter log "stand desk" 1h
-```
+- Plain text: case-insensitive substring match
+- Wildcard `*`: matches any characters
 
-**Advanced Counter Creation & Editing**
+Commands:
 
-It natively supports Super Productivity's streak tracker, schedules, icons, and countdowns!
+- `sp task search <query> [--json] [--ndjson] [--full]`
+- `sp counter search <query> [--json] [--ndjson] [--full]`
 
-```bash
-# Create simple ClickCounter
-sp counter add "Drink Water" --type ClickCounter --icon "local_drink"
+Examples:
 
-# Create a StopWatch that counts down
-sp counter add "Reading Session" --type StopWatch --countdown 30m --icon "menu_book"
+- `sp task search "greek" --json`
+- `sp task search "open*"`
+- `sp counter search "coffee"`
 
-# Create a habit with specific streak days (1=Mon ... 5=Fri)
-sp counter add "Work out" --type ClickCounter \
-    --track-streaks \
-    --streak-min 1 \
-    --streak-days "1,2,3,4,5" \
-    --icon "fitness_center"
+## Common Workflows
 
-# Create a habit for exactly 3 times a week (Frequency Streak)
-sp counter add "Call Parents" --type ClickCounter \
-    --track-streaks \
-    --streak-mode weekly-frequency \
-    --streak-freq 3
+- Inspect today: `sp status`
+- Find a task ID: `sp task search "report"`
+- Edit a task by ID: `sp task edit <task-id> --title "Weekly report"`
+- Plan and estimate: `sp task plan <task-id> 2026-03-05 14:30 --estimate 2h`
+- Track completion: `sp task done <task-id>`
+- Find counter ID and toggle: `sp counter search "water"` then `sp counter toggle <counter-id>`
 
-# Edit an existing counter
-sp counter edit "Work out" --title "Gym" --streak-freq 4
-```
+## AI/LLM Agent Note
 
-### 📁 Project Management (`sp project`)
+From `sp --help`:
 
-```bash
-# List existing projects
-sp project list
-```
-
----
-## Automation & Testing
-
-We provide a **`test.py`** script containing full endpoint integration coverage using a sterilized `demo.json`. 
-
-```bash
-# Automatically sets up demo.json in a safe sandbox mode, runs all commands, and restores original data securely.
-python3 test.py
-```
-
-## Setup Notes `(Syncing)`
-
-By default, the script looks for your synced application save on Dropbox via `rclone`.
-The hardcoded target inside `sp.py` is `dropbox:Apps/super_productivity/sync-data.json`.
-Make sure you have an rclone remote configured named `dropbox` exactly if you plan to use sync. If it fails, the script falls back back safely to `data/sync-data.extracted.json`!
+- Note for AI/LLM agents: Use `--json` or `--ndjson` flags for unambiguous, parseable output.
+- Default JSON shows essential fields; use `--full` for all fields.
+- All operations use IDs (not fuzzy matching) for reliability.
