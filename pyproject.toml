@@ -11,7 +11,7 @@ requires-python = ">=3.7"
 license = "MIT"
 keywords = ["super-productivity", "cli", "productivity", "task-manager", "time-tracking"]
 authors = [
-  { name = "Onur", email = "onur@example.com" },
+  { name = "Onur NESVAT", email = "onurnesvat@gmail.com" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -37,9 +37,9 @@ sp = "sp:main"
 sp = "sp:main"
 
 [project.urls]
-Homepage = "https://github.com/onur/super-productivity-cli"
-Repository = "https://github.com/onur/super-productivity-cli.git"
-"Bug Tracker" = "https://github.com/onur/super-productivity-cli/issues"
+Homepage = "https://github.com/onesvat/super-productivity-cli"
+Repository = "https://github.com/onesvat/super-productivity-cli.git"
+"Bug Tracker" = "https://github.com/onesvat/super-productivity-cli/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["sp.py"]
