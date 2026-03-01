@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+
+# Local data / Backups
+data/sync-data.extracted.json
+data/sync-data.json
+*.bak
+
+# Virtual Env
+.venv/
+venv/
+env/
+.env
+
+# OS Files
+.DS_Store
+Thumbs.db
