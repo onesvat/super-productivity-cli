@@ -22,11 +22,12 @@ STATE_FILE = os.path.join(CONFIG_DIR, ".sp-state.json")
 RCLONE_TARGET = "dropbox:Apps/super_productivity/sync-data.json"
 MAGIC_PREFIX = b"pf_C2__"
 TODAY_TAG_ID = "TODAY"
+OUTPUT_MODE = "text"
 
 # ─── Colors ───────────────────────────────────────────────────────────────────
 
 def supports_color():
-    return sys.stdout.isatty() and os.environ.get("TERM") != "dumb"
+    return sys.stdout.isatty() and os.environ.get("TERM") != "dumb" and OUTPUT_MODE == "text"
 
 USE_COLOR = supports_color()
 def _c(code): return f"\033[{code}m" if USE_COLOR else ""
@@ -94,10 +95,38 @@ def fmt_time(ms_utc: int) -> str:
         return t_str
     return f"{d_str} {t_str}"
 
+
+def is_machine_mode(args=None) -> bool:
+    if args is not None:
+        return getattr(args, "json", False) or getattr(args, "ndjson", False)
+    return OUTPUT_MODE in ("json", "ndjson")
+
+
+def emit(args, payload):
+    if getattr(args, "json", False):
+        print(json.dumps(payload, ensure_ascii=False))
+        return
+    if getattr(args, "ndjson", False):
+        if isinstance(payload, list):
+            for row in payload:
+                print(json.dumps(row, ensure_ascii=False))
+        else:
+            print(json.dumps(payload, ensure_ascii=False))
+        return
+
+
+def fail(args, message: str):
+    if is_machine_mode(args):
+        emit(args, {"error": message})
+    else:
+        print(red(message))
+    raise SystemExit(1)
+
 # ─── Data loading / saving / syncing ──────────────────────────────────────────
 
 def sync_download():
-    print(dim("↓ Downloading from cloud..."))
+    if not is_machine_mode():
+        print(dim("↓ Downloading from cloud..."))
     try:
         proc = subprocess.run(
             ["rclone", "cat", RCLONE_TARGET],
@@ -112,13 +141,16 @@ def sync_download():
         with open(DATA_FILE, "wb") as f:
             f.write(decompressed)
     except subprocess.CalledProcessError as e:
-        print(yellow(f"⚠ Cloud sync failed (rclone error). Using local file."))
-        print(dim(e.stderr.decode().strip()))
+        if not is_machine_mode():
+            print(yellow("⚠ Cloud sync failed (rclone error). Using local file."))
+            print(dim(e.stderr.decode().strip()))
     except Exception as e:
-        print(yellow(f"⚠ Error processing cloud data: {e}. Using local file."))
+        if not is_machine_mode():
+            print(yellow(f"⚠ Error processing cloud data: {e}. Using local file."))
 
 def sync_upload():
-    print(dim("↑ Uploading to cloud..."))
+    if not is_machine_mode():
+        print(dim("↑ Uploading to cloud..."))
     try:
         with open(DATA_FILE, "rb") as f:
             raw_data = f.read()
@@ -131,11 +163,14 @@ def sync_upload():
         )
         out, err = proc.communicate(input=payload)
         if proc.returncode != 0:
-            print(red(f"✗ Error uploading to cloud: {err.decode().strip()}"))
+            if not is_machine_mode():
+                print(red(f"✗ Error uploading to cloud: {err.decode().strip()}"))
         else:
-            print(green("✓ Synced to cloud."))
+            if not is_machine_mode():
+                print(green("✓ Synced to cloud."))
     except Exception as e:
-        print(red(f"✗ Error preparing upload: {e}"))
+        if not is_machine_mode():
+            print(red(f"✗ Error preparing upload: {e}"))
 
 def load_data():
     with open(DATA_FILE, "r", encoding="utf-8") as f:
@@ -179,6 +214,62 @@ def get_project_by_name(data, name: str):
 def project_name(data, project_id: str) -> str:
     proj = get_projects(data).get(project_id, {})
     return proj.get("title", project_id or "—")
+
+
+def get_task_or_exit(data, task_id: str, args):
+    task = get_tasks(data).get(task_id)
+    if not task:
+        fail(args, f"Task '{task_id}' not found")
+    return task
+
+
+def get_project_or_exit(data, project_id: str, args):
+    project = get_projects(data).get(project_id)
+    if not project:
+        fail(args, f"Project '{project_id}' not found")
+    return project
+
+
+def get_counter_or_exit(data, counter_id: str, args):
+    counter = get_counters(data).get(counter_id)
+    if not counter:
+        fail(args, f"Counter '{counter_id}' not found")
+    return counter
+
+
+def serialize_task(data, task, full=False):
+    today = today_str()
+    today_tag = get_tags(data).get(TODAY_TAG_ID, {})
+    today_task_ids = set(today_tag.get("taskIds", []))
+    if not full:
+        return {
+            "id": task.get("id"),
+            "title": task.get("title"),
+            "projectId": task.get("projectId"),
+            "estimate": task.get("timeEstimate", 0),
+            "isDone": bool(task.get("isDone", False)),
+            "today": task.get("id") in today_task_ids,
+        }
+    t = dict(task)
+    t["estimate"] = t.get("timeEstimate", 0)
+    t["today"] = t.get("id") in today_task_ids
+    return t
+
+
+def serialize_project(project, full=False):
+    if not full:
+        return {"id": project.get("id"), "title": project.get("title")}
+    return dict(project)
+
+
+def serialize_counter(counter, full=False):
+    if not full:
+        return {
+            "id": counter.get("id"),
+            "title": counter.get("title"),
+            "type": counter.get("type"),
+        }
+    return dict(counter)
 
 # ─── Matching ─────────────────────────────────────────────────────────────────
 
@@ -255,20 +346,20 @@ def cmd_status(args):
             pname = project_name(data, task.get("projectId", ""))
             per_project[pname] = per_project.get(pname, 0) + spent_today
 
-    print(f"\n{bold('📊 Today\'s Status')} {dim(f'({today} {fmt_time(now_ms())})')}")
-    print("─" * 50)
-
     # Active counter tracking
     state = load_state()
     active_counter_id = state.get("currentCounterId")
+    active_counter_payload = None
     if active_counter_id:
         active_counter = get_counters(data).get(active_counter_id)
         if active_counter:
             elapsed_ms = now_ms() - state.get("startedAt", now_ms())
             total_ms += elapsed_ms  # Include active time in total
-            print(f"  {green('▶ TRACKING Counter')} {bold(active_counter['title'])}")
-            print(f"                     {dim(f'Elapsed this session: {fmt_duration(elapsed_ms)}')}")
-            print()
+            active_counter_payload = {
+                "id": active_counter_id,
+                "title": active_counter.get("title"),
+                "elapsedMs": elapsed_ms,
+            }
 
     # Today's tasks
     planned_timed = []
@@ -293,39 +384,57 @@ def cmd_status(args):
                 
         planned_timed.sort(key=lambda t: t.get("dueWithTime", 0))
 
+    if is_machine_mode(args):
+        payload = {
+            "date": today,
+            "totalMs": total_ms,
+            "total": fmt_duration(total_ms),
+            "activeCounter": active_counter_payload,
+            "tasks": {
+                "plannedTimed": [serialize_task(data, t, full=args.full) for t in planned_timed],
+                "plannedDay": [serialize_task(data, t, full=args.full) for t in planned_day],
+                "unplanned": [serialize_task(data, t, full=args.full) for t in unplanned],
+            },
+            "byProject": [
+                {"project": pname, "timeMs": ms, "time": fmt_duration(ms)}
+                for pname, ms in sorted(per_project.items(), key=lambda x: -x[1])
+            ],
+        }
+        emit(args, payload)
+        return
+
+    print(f"\n{bold('📊 Today\'s Status')} {dim(f'({today} {fmt_time(now_ms())})')}")
+    print("─" * 50)
+    if active_counter_payload:
+        print(f"  {green('▶ TRACKING Counter')} {bold(active_counter_payload['title'])}")
+        print(f"                     {dim(f'Elapsed this session: {fmt_duration(active_counter_payload['elapsedMs'])}')}")
+        print()
+
     if planned_timed:
         print(f"  {bold('📅 Planned Tasks (Timed):')}")
         for task in planned_timed:
             done_mark = green("✓") if task.get("isDone") else yellow("○")
             spent_today = task.get("timeSpentOnDay", {}).get(today, 0)
             est = task.get("timeEstimate", 0)
-            
             due_ms = task.get("dueWithTime")
             time_icon = yellow(f"⏰ {fmt_time(due_ms)} ")
-
-            time_info = ""
-            if spent_today or est:
-                time_info = dim(f" [{fmt_duration(spent_today)}/{fmt_duration(est)}]")
+            time_info = dim(f" [{fmt_duration(spent_today)}/{fmt_duration(est)}]") if (spent_today or est) else ""
             print(f"    {time_icon}{done_mark} {task['title']}{time_info}")
         print()
-        
+
     if planned_day:
         print(f"  {bold('📅 Planned Tasks (All-day):')}")
         for task in planned_day:
             done_mark = green("✓") if task.get("isDone") else yellow("○")
             spent_today = task.get("timeSpentOnDay", {}).get(today, 0)
             est = task.get("timeEstimate", 0)
-            
             day_str = task.get("dueDay")
             display_day = "Today" if day_str == today_str() else day_str
             time_icon = yellow(f"📅 {display_day} ")
-
-            time_info = ""
-            if spent_today or est:
-                time_info = dim(f" [{fmt_duration(spent_today)}/{fmt_duration(est)}]")
+            time_info = dim(f" [{fmt_duration(spent_today)}/{fmt_duration(est)}]") if (spent_today or est) else ""
             print(f"    {time_icon}{done_mark} {task['title']}{time_info}")
         print()
-    
+
     title = "🌤 Other Tasks Today:" if (planned_timed or planned_day) else "🌤 Today's Tasks:"
     print(f"  {bold(title)}")
     if not unplanned and not planned_timed and not planned_day:
@@ -334,9 +443,7 @@ def cmd_status(args):
         done_mark = green("✓") if task.get("isDone") else yellow("○")
         spent_today = task.get("timeSpentOnDay", {}).get(today, 0)
         est = task.get("timeEstimate", 0)
-        time_info = ""
-        if spent_today or est:
-            time_info = dim(f" [{fmt_duration(spent_today)}/{fmt_duration(est)}]")
+        time_info = dim(f" [{fmt_duration(spent_today)}/{fmt_duration(est)}]") if (spent_today or est) else ""
         print(f"    {done_mark} {task['title']}{time_info}")
 
     print()
@@ -362,10 +469,9 @@ def cmd_task_list(args):
 
     filter_pid = None
     if args.project:
-        filter_pid, _ = get_project_by_name(data, args.project)
-        if not filter_pid:
-            print(red(f"Project '{args.project}' not found"))
-            return
+        if args.project not in get_projects(data):
+            fail(args, f"Project '{args.project}' not found")
+        filter_pid = args.project
 
     from datetime import timedelta
     tmrw_str = (date.today() + timedelta(days=1)).isoformat()
@@ -391,6 +497,10 @@ def cmd_task_list(args):
         
         if not filter_pid and task.get("parentId"): continue
         rows.append(task)
+
+    if is_machine_mode(args):
+        emit(args, [serialize_task(data, t, full=args.full) for t in rows])
+        return
 
     if not rows:
         print(dim("No tasks found."))
@@ -458,19 +568,34 @@ def cmd_task_list(args):
             print_task_row(t)
         print()
 
+
+def cmd_task_view(args):
+    data = load_data()
+    task = get_task_or_exit(data, args.id, args)
+    if is_machine_mode(args):
+        emit(args, serialize_task(data, task, full=args.full))
+        return
+    task_id = task.get("id")
+    print(f"{bold(task.get('title', ''))} {dim(f'[{task_id}]')}")
+    print(f"  Project: {project_name(data, task.get('projectId', ''))}")
+    print(f"  Done: {'yes' if task.get('isDone') else 'no'}")
+    print(f"  Today: {'yes' if task.get('id') in set(get_tags(data).get(TODAY_TAG_ID, {}).get('taskIds', [])) else 'no'}")
+    print(f"  Estimate: {fmt_duration(task.get('timeEstimate', 0))}")
+
 def cmd_task_add(args):
     data = load_data()
     project_id = "INBOX_PROJECT"
     if args.project:
-        project_id, proj = get_project_by_name(data, args.project)
-        if not project_id:
-            print(red(f"Project '{args.project}' not found."))
-            return
+        if args.project not in get_projects(data):
+            fail(args, f"Project '{args.project}' not found")
+        project_id = args.project
 
     estimate_ms = 0
     if args.estimate:
-        try: estimate_ms = parse_duration(args.estimate)
-        except ValueError as e: return print(red(str(e)))
+        try:
+            estimate_ms = parse_duration(args.estimate)
+        except ValueError as e:
+            fail(args, str(e))
 
     new_id = str(uuid.uuid4()).replace("-", "")[:20]
     task = {
@@ -497,26 +622,50 @@ def cmd_task_add(args):
             proj_entity.setdefault("taskIds", []).append(new_id)
 
     save_data(data)
+    if is_machine_mode(args):
+        emit(args, serialize_task(data, task, full=args.full))
+        return
     est_str = f"  est: {fmt_duration(estimate_ms)}" if estimate_ms else ""
     print(green(f"✓ Added: '{args.title}' [{project_name(data, project_id)}]{est_str}"))
 
 def cmd_task_edit(args):
     data = load_data()
-    task = pick_task(data, args.query)
-    if not task: return
+    task = get_task_or_exit(data, args.id, args)
+    old_title = task.get("title", "")
     if args.title:
         old = task["title"]
         task["title"] = args.title
         task["modified"] = now_ms()
+    if args.estimate:
+        try:
+            task["timeEstimate"] = parse_duration(args.estimate)
+            task["modified"] = now_ms()
+        except ValueError as e:
+            fail(args, str(e))
+    if args.project:
+        get_project_or_exit(data, args.project, args)
+        old_pid = task.get("projectId")
+        if old_pid and old_pid in data["state"]["project"]["entities"]:
+            old_task_ids = data["state"]["project"]["entities"][old_pid].get("taskIds", [])
+            if task["id"] in old_task_ids:
+                old_task_ids.remove(task["id"])
+        new_task_ids = data["state"]["project"]["entities"][args.project].setdefault("taskIds", [])
+        if task["id"] not in new_task_ids:
+            new_task_ids.append(task["id"])
+        task["projectId"] = args.project
+        task["modified"] = now_ms()
+    if args.title or args.estimate or args.project:
         save_data(data)
-        print(green(f"✓ Renamed: '{old}' → '{args.title}'"))
+        if is_machine_mode(args):
+            emit(args, serialize_task(data, task, full=args.full))
+            return
+        print(green(f"✓ Updated: '{old_title}'"))
     else:
-        print(yellow("Nothing to edit. Use --title to rename."))
+        fail(args, "Nothing to edit. Use --title, --estimate or --project.")
 
 def cmd_task_done(args):
     data = load_data()
-    task = pick_task(data, args.query)
-    if not task: return
+    task = get_task_or_exit(data, args.id, args)
     was_done = task.get("isDone", False)
 
     task["isDone"] = True
@@ -533,29 +682,40 @@ def cmd_task_done(args):
                 parent["isDone"] = True
                 parent["doneOn"] = now_ms()
                 parent["modified"] = now_ms()
-                print(dim(f"  → Parent '{parent['title']}' also marked done"))
+                if not is_machine_mode(args):
+                    print(dim(f"  → Parent '{parent['title']}' also marked done"))
 
     save_data(data)
-    if was_done: print(yellow(f"Already done: {task['title']}"))
-    else: print(green(f"✓ Done: {bold(task['title'])}"))
+    if is_machine_mode(args):
+        emit(args, serialize_task(data, task, full=args.full))
+        return
+    if was_done:
+        print(yellow(f"Already done: {task['title']}"))
+    else:
+        print(green(f"✓ Done: {bold(task['title'])}"))
 
 def cmd_task_estimate(args):
     data = load_data()
-    task = pick_task(data, args.query)
-    if not task: return
-    try: ms = parse_duration(args.duration)
-    except ValueError as e: return print(red(str(e)))
+    task = get_task_or_exit(data, args.id, args)
+    try:
+        ms = parse_duration(args.duration)
+    except ValueError as e:
+        fail(args, str(e))
     task["timeEstimate"] = ms
     task["modified"] = now_ms()
     save_data(data)
+    if is_machine_mode(args):
+        emit(args, serialize_task(data, task, full=args.full))
+        return
     print(green(f"✓ Estimate set: {bold(task['title'])} → {fmt_duration(ms)}"))
 
 def cmd_task_log(args):
     data = load_data()
-    task = pick_task(data, args.query)
-    if not task: return
-    try: ms = parse_duration(args.duration)
-    except ValueError as e: return print(red(str(e)))
+    task = get_task_or_exit(data, args.id, args)
+    try:
+        ms = parse_duration(args.duration)
+    except ValueError as e:
+        fail(args, str(e))
     
     log_date = args.date if args.date else today_str()
     spent = task.setdefault("timeSpentOnDay", {})
@@ -564,17 +724,21 @@ def cmd_task_log(args):
     task["timeSpent"] = sum(spent.values())
     task["modified"] = now_ms()
     save_data(data)
-
-    if old: print(green(f"✓ Updated log for {log_date}: {bold(task['title'])} {fmt_duration(old)} → {fmt_duration(ms)}"))
-    else: print(green(f"✓ Logged {fmt_duration(ms)} for {log_date}: {bold(task['title'])}"))
+    if is_machine_mode(args):
+        emit(args, serialize_task(data, task, full=args.full))
+        return
+    if old:
+        print(green(f"✓ Updated log for {log_date}: {bold(task['title'])} {fmt_duration(old)} → {fmt_duration(ms)}"))
+    else:
+        print(green(f"✓ Logged {fmt_duration(ms)} for {log_date}: {bold(task['title'])}"))
 
 def cmd_task_today(args):
     data = load_data()
-    task = pick_task(data, args.query)
-    if not task: return
+    task = get_task_or_exit(data, args.id, args)
 
     today_tag = get_tags(data).get(TODAY_TAG_ID)
-    if not today_tag: return print(red("TODAY tag not found in data."))
+    if not today_tag:
+        fail(args, "TODAY tag not found in data.")
 
     tid = task["id"]
     tag_tasks = today_tag.setdefault("taskIds", [])
@@ -591,12 +755,14 @@ def cmd_task_today(args):
 
     task["modified"] = now_ms()
     save_data(data)
+    if is_machine_mode(args):
+        emit(args, serialize_task(data, task, full=args.full))
+        return
     print(msg)
 
 def cmd_task_plan(args):
     data = load_data()
-    task = pick_task(data, args.query)
-    if not task: return
+    task = get_task_or_exit(data, args.id, args)
 
     try:
         # Validate date
@@ -615,7 +781,7 @@ def cmd_task_plan(args):
             task.pop("remindAt", None)
             msg_dt = f"due {args.date} (All-day)"
     except ValueError:
-        return print(red("Invalid date or time format. Please use YYYY-MM-DD and optionally HH:MM."))
+        fail(args, "Invalid date or time format. Please use YYYY-MM-DD and optionally HH:MM.")
 
     task["modified"] = now_ms()
 
@@ -627,18 +793,19 @@ def cmd_task_plan(args):
             task["timeEstimate"] = est_ms
             msgs.append(f"est {fmt_duration(est_ms)}")
         except ValueError as e:
-            return print(red(str(e)))
+            fail(args, str(e))
 
     save_data(data)
+    if is_machine_mode(args):
+        emit(args, serialize_task(data, task, full=args.full))
+        return
     print(green(f"✓ Planned: {bold(task['title'])} ({', '.join(msgs)})"))
 
 def cmd_task_move(args):
     data = load_data()
-    task = pick_task(data, args.query)
-    if not task: return
-
-    new_pid, new_proj = get_project_by_name(data, args.project)
-    if not new_pid: return print(red(f"Project '{args.project}' not found."))
+    task = get_task_or_exit(data, args.id, args)
+    new_proj = get_project_or_exit(data, args.project, args)
+    new_pid = args.project
 
     old_pid = task.get("projectId")
     if old_pid and old_pid in data["state"]["project"]["entities"]:
@@ -651,16 +818,18 @@ def cmd_task_move(args):
     task["projectId"] = new_pid
     task["modified"] = now_ms()
     save_data(data)
+    if is_machine_mode(args):
+        emit(args, serialize_task(data, task, full=args.full))
+        return
     print(green(f"✓ Moved: {bold(task['title'])} → {new_proj['title']}"))
 
 def cmd_task_delete(args):
     data = load_data()
-    task = pick_task(data, args.query, include_done=True)
-    if not task: return
+    task = get_task_or_exit(data, args.id, args)
+    if not args.yes:
+        fail(args, "Refusing delete without --yes")
 
     tid = task["id"]
-    print(f"{red('Delete')} '{bold(task['title'])}'? {dim('[y/N]')} ", end="")
-    if input().strip().lower() != "y": return print(dim("Cancelled."))
 
     ids_list = data["state"]["task"]["ids"]
     if tid in ids_list: ids_list.remove(tid)
@@ -682,6 +851,9 @@ def cmd_task_delete(args):
             tag["taskIds"].remove(tid)
 
     save_data(data)
+    if is_machine_mode(args):
+        emit(args, {"deleted": tid})
+        return
     print(red(f"✗ Deleted: '{task['title']}'"))
 
 # ─── Project Endpoint ─────────────────────────────────────────────────────────
@@ -689,11 +861,26 @@ def cmd_task_delete(args):
 def cmd_project_list(args):
     data = load_data()
     projects = get_projects(data)
+    rows = [serialize_project(projects[pid], full=args.full) for pid in projects]
+    if is_machine_mode(args):
+        emit(args, rows)
+        return
     print(f"\n{bold('Projects:')}")
     for pid, proj in projects.items():
         task_count = len(proj.get("taskIds", []))
         print(f"  - {bold(proj['title'])} {dim(f'({task_count} tasks)')}")
     print()
+
+
+def cmd_project_view(args):
+    data = load_data()
+    project = get_project_or_exit(data, args.id, args)
+    if is_machine_mode(args):
+        emit(args, serialize_project(project, full=args.full))
+        return
+    project_id = project.get("id")
+    print(f"{bold(project.get('title', ''))} {dim(f'[{project_id}]')}")
+    print(f"  Tasks: {len(project.get('taskIds', []))}")
 
 # ─── Counter Endpoint ─────────────────────────────────────────────────────────
 
@@ -701,7 +888,19 @@ def cmd_counter_list(args):
     data = load_data()
     counters = get_counters(data)
     if not counters:
+        if is_machine_mode(args):
+            emit(args, [])
+            return
         print(dim("No counters found."))
+        return
+
+    if is_machine_mode(args):
+        rows = []
+        for cid in get_counter_ids(data):
+            c = counters.get(cid)
+            if c:
+                rows.append(serialize_counter(c, full=args.full))
+        emit(args, rows)
         return
 
     today = today_str()
@@ -763,7 +962,7 @@ def cmd_counter_add(args):
         try:
             counter["countdownDuration"] = parse_duration(args.countdown)
         except ValueError as e:
-            return print(red(f"Invalid duration: {e}"))
+            fail(args, f"Invalid duration: {e}")
 
     if "simpleCounter" not in data.setdefault("state", {}):
         data["state"]["simpleCounter"] = {"ids": [], "entities": {}}
@@ -772,12 +971,14 @@ def cmd_counter_add(args):
     data["state"]["simpleCounter"]["entities"][new_id] = counter
 
     save_data(data)
+    if is_machine_mode(args):
+        emit(args, serialize_counter(counter, full=args.full))
+        return
     print(green(f"✓ Added {ctype}: '{title}'"))
 
 def cmd_counter_edit(args):
     data = load_data()
-    counter = pick_counter(data, args.query)
-    if not counter: return
+    counter = get_counter_or_exit(data, args.id, args)
 
     changed = False
 
@@ -819,18 +1020,20 @@ def cmd_counter_edit(args):
             counter["countdownDuration"] = parse_duration(args.countdown)
             changed = True
         except ValueError as e:
-            return print(red(f"Invalid duration: {e}"))
+            fail(args, f"Invalid duration: {e}")
             
     if changed:
         save_data(data)
+        if is_machine_mode(args):
+            emit(args, serialize_counter(counter, full=args.full))
+            return
         print(green(f"✓ Updated counter: '{counter['title']}'"))
     else:
-        print(yellow("Nothing to edit. Use arguments like --title, --icon, etc."))
+        fail(args, "Nothing to edit. Use arguments like --title, --icon, etc.")
 
 def cmd_counter_log(args):
     data = load_data()
-    counter = pick_counter(data, args.query)
-    if not counter: return
+    counter = get_counter_or_exit(data, args.id, args)
 
     log_date = args.date if args.date else today_str()
     ctype = counter.get("type")
@@ -841,14 +1044,17 @@ def cmd_counter_log(args):
         else:
             val = int(args.value)
     except ValueError as e:
-        return print(red(f"Invalid value for {ctype}: {e}"))
+        fail(args, f"Invalid value for {ctype}: {e}")
 
     counts = counter.setdefault("countOnDay", {})
     old = counts.get(log_date, 0)
     counts[log_date] = val
 
     save_data(data)
-    
+    if is_machine_mode(args):
+        emit(args, serialize_counter(counter, full=args.full))
+        return
+
     if ctype == "StopWatch":
         print(green(f"✓ Updated log for {log_date}: {bold(counter['title'])} {fmt_duration(old)} → {fmt_duration(val)}"))
     else:
@@ -869,8 +1075,7 @@ def _stop_counter(data, state):
 
 def cmd_counter_toggle(args):
     data = load_data()
-    counter = pick_counter(data, args.query)
-    if not counter: return
+    counter = get_counter_or_exit(data, args.id, args)
 
     ctype = counter.get("type")
     today = today_str()
@@ -879,6 +1084,9 @@ def cmd_counter_toggle(args):
         counts = counter.setdefault("countOnDay", {})
         counts[today] = counts.get(today, 0) + 1
         save_data(data)
+        if is_machine_mode(args):
+            emit(args, serialize_counter(counter, full=args.full))
+            return
         print(green(f"✓ Incremented {bold(counter['title'])} → {counts[today]}"))
     else:
         # StopWatch logic
@@ -887,26 +1095,32 @@ def cmd_counter_toggle(args):
             # Stop it
             c, elapsed = _stop_counter(data, state)
             save_data(data)
+            if is_machine_mode(args):
+                emit(args, serialize_counter(counter, full=args.full))
+                return
             print(green(f"■ Stopped: {bold(counter['title'])} +{fmt_duration(elapsed)}"))
         else:
             # Maybe stop existing one
             if state.get("currentCounterId"):
                 prev_c, elapsed = _stop_counter(data, state)
                 save_data(data)
-                print(yellow(f"■ Stopped previous: '{prev_c['title']}' +{fmt_duration(elapsed)}"))
+                if not is_machine_mode(args):
+                    print(yellow(f"■ Stopped previous: '{prev_c['title']}' +{fmt_duration(elapsed)}"))
             # Start new one
             state = {"currentCounterId": counter["id"], "startedAt": now_ms()}
             save_state(state)
+            if is_machine_mode(args):
+                emit(args, serialize_counter(counter, full=args.full))
+                return
             print(green(f"▶ Started counter: {bold(counter['title'])}"))
 
 def cmd_counter_delete(args):
     data = load_data()
-    counter = pick_counter(data, args.query)
-    if not counter: return
+    counter = get_counter_or_exit(data, args.id, args)
+    if not args.yes:
+        fail(args, "Refusing delete without --yes")
 
     cid = counter["id"]
-    print(f"{red('Delete counter')} '{bold(counter['title'])}'? {dim('[y/N]')} ", end="")
-    if input().strip().lower() != "y": return print(dim("Cancelled."))
 
     state = load_state()
     if state.get("currentCounterId") == cid:
@@ -917,92 +1131,116 @@ def cmd_counter_delete(args):
     data["state"]["simpleCounter"]["entities"].pop(cid, None)
 
     save_data(data)
+    if is_machine_mode(args):
+        emit(args, {"deleted": cid})
+        return
     print(red(f"✗ Deleted counter: '{counter['title']}'"))
 
 # ─── Argument parser ──────────────────────────────────────────────────────────
 
 def main():
+    output_parent = argparse.ArgumentParser(add_help=False)
+    out_group = output_parent.add_mutually_exclusive_group()
+    out_group.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="Emit JSON output")
+    out_group.add_argument("--ndjson", action="store_true", default=argparse.SUPPRESS, help="Emit NDJSON output")
+    output_parent.add_argument("--full", action="store_true", default=argparse.SUPPRESS, help="Include full entity payload in JSON/NDJSON output")
+
     parser = argparse.ArgumentParser(
         prog="sp",
         description="Super Productivity CLI",
+        epilog=(
+            "Note for AI/LLM agents: Use --json or --ndjson flags for unambiguous, parseable output.\n"
+            "Default JSON shows essential fields; use --full for all fields.\n"
+            "All operations use IDs (not fuzzy matching) for reliability."
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=[output_parent],
     )
     sub = parser.add_subparsers(dest="endpoint")
 
     # sp status
-    sub.add_parser("status", help="Show today's summary")
+    sub.add_parser("status", help="Show today's summary", parents=[output_parent])
 
     # sp task
-    task_p = sub.add_parser("task", help="Task management commands")
+    task_p = sub.add_parser("task", help="Task management commands", parents=[output_parent])
     task_sub = task_p.add_subparsers(dest="action")
 
     # task list
-    tl_p = task_sub.add_parser("list", help="List tasks")
-    tl_p.add_argument("--project", "-p", help="Filter by project")
+    tl_p = task_sub.add_parser("list", help="List tasks", parents=[output_parent])
+    tl_p.add_argument("--project", "-p", help="Filter by project ID")
     tl_p.add_argument("--done", "-d", action="store_true", help="Show done tasks")
     tl_p.add_argument("--today", "-t", action="store_true", help="Only Today tasks")
     tl_p.add_argument("--tomorrow", action="store_true", help="Only Tomorrow tasks")
     tl_p.add_argument("--date", help="Filter by due date (YYYY-MM-DD)")
     tl_p.add_argument("--scheduled", action="store_true", help="Only scheduled tasks (any date)")
 
+    # task view
+    tv_p = task_sub.add_parser("view", help="View task by ID", parents=[output_parent])
+    tv_p.add_argument("id", help="Task ID")
+
     # task add
-    ta_p = task_sub.add_parser("add", help="Add task")
+    ta_p = task_sub.add_parser("add", help="Add task", parents=[output_parent])
     ta_p.add_argument("title", help="Task title")
-    ta_p.add_argument("--project", "-p", help="Project name")
+    ta_p.add_argument("--project", "-p", help="Project ID")
     ta_p.add_argument("--estimate", "-e", help="Estimate (e.g. 1h30m)")
 
     # task edit
-    te_p = task_sub.add_parser("edit", help="Edit task")
-    te_p.add_argument("query", help="Search query")
+    te_p = task_sub.add_parser("edit", help="Edit task by ID", parents=[output_parent])
+    te_p.add_argument("id", help="Task ID")
     te_p.add_argument("--title", help="New title")
+    te_p.add_argument("--estimate", help="Estimate (e.g. 1h30m)")
+    te_p.add_argument("--project", "-p", help="Project ID")
 
     # task done
-    td_p = task_sub.add_parser("done", help="Mark done")
-    td_p.add_argument("query", help="Search query")
+    td_p = task_sub.add_parser("done", help="Mark done", parents=[output_parent])
+    td_p.add_argument("id", help="Task ID")
 
     # task estimate
-    test_p = task_sub.add_parser("estimate", help="Set estimate")
-    test_p.add_argument("query", help="Search query")
+    test_p = task_sub.add_parser("estimate", help="Set estimate", parents=[output_parent])
+    test_p.add_argument("id", help="Task ID")
     test_p.add_argument("duration", help="Duration (e.g. 1h30m)")
 
     # task log
-    tlog_p = task_sub.add_parser("log", help="Set spent time")
-    tlog_p.add_argument("query", help="Search query")
+    tlog_p = task_sub.add_parser("log", help="Set spent time", parents=[output_parent])
+    tlog_p.add_argument("id", help="Task ID")
     tlog_p.add_argument("duration", help="Duration")
     tlog_p.add_argument("--date", help="Date YYYY-MM-DD")
 
     # task today
-    ttod_p = task_sub.add_parser("today", help="Toggle Today tag")
-    ttod_p.add_argument("query", help="Search query")
+    ttod_p = task_sub.add_parser("today", help="Toggle Today tag", parents=[output_parent])
+    ttod_p.add_argument("id", help="Task ID")
 
     # task plan
-    tplan_p = task_sub.add_parser("plan", help="Plan task (set due date, optional time and estimate)")
-    tplan_p.add_argument("query", help="Search query")
+    tplan_p = task_sub.add_parser("plan", help="Plan task (set due date, optional time and estimate)", parents=[output_parent])
+    tplan_p.add_argument("id", help="Task ID")
     tplan_p.add_argument("date", help="Due date (YYYY-MM-DD)")
     tplan_p.add_argument("time", nargs="?", help="Due time (HH:MM) - Optional")
     tplan_p.add_argument("--estimate", "-e", help="Estimate (e.g. 1h30m)")
 
     # task move
-    tmov_p = task_sub.add_parser("move", help="Move to project")
-    tmov_p.add_argument("query", help="Search query")
-    tmov_p.add_argument("--project", "-p", required=True, help="Target project")
+    tmov_p = task_sub.add_parser("move", help="Move to project", parents=[output_parent])
+    tmov_p.add_argument("id", help="Task ID")
+    tmov_p.add_argument("--project", "-p", required=True, help="Target project ID")
 
     # task delete
-    tdel_p = task_sub.add_parser("delete", help="Delete task")
-    tdel_p.add_argument("query", help="Search query")
+    tdel_p = task_sub.add_parser("delete", help="Delete task", parents=[output_parent])
+    tdel_p.add_argument("id", help="Task ID")
+    tdel_p.add_argument("--yes", action="store_true", help="Confirm delete without prompting")
 
     # sp project
-    proj_p = sub.add_parser("project", help="Project management")
+    proj_p = sub.add_parser("project", help="Project management", parents=[output_parent])
     proj_sub = proj_p.add_subparsers(dest="action")
-    proj_sub.add_parser("list", help="List projects")
+    proj_sub.add_parser("list", help="List projects", parents=[output_parent])
+    pv_p = proj_sub.add_parser("view", help="View project by ID", parents=[output_parent])
+    pv_p.add_argument("id", help="Project ID")
 
     # sp counter
-    cnt_p = sub.add_parser("counter", help="Counter management")
+    cnt_p = sub.add_parser("counter", help="Counter management", parents=[output_parent])
     cnt_sub = cnt_p.add_subparsers(dest="action")
 
-    cnt_sub.add_parser("list", help="List counters")
+    cnt_sub.add_parser("list", help="List counters", parents=[output_parent])
 
-    cadd_p = cnt_sub.add_parser("add", help="Add counter")
+    cadd_p = cnt_sub.add_parser("add", help="Add counter", parents=[output_parent])
     cadd_p.add_argument("title", help="Title")
     cadd_p.add_argument("--type", choices=["ClickCounter", "StopWatch"], default="ClickCounter", help="Type of counter")
     cadd_p.add_argument("--icon", help="Material icon name (e.g., 'free_breakfast')")
@@ -1013,8 +1251,8 @@ def main():
     cadd_p.add_argument("--streak-days", default="1,2,3,4,5", help="Comma-sep days (0=Sun, 1=Mon...6=Sat) e.g., '1,2,3,4,5'")
     cadd_p.add_argument("--countdown", help="StopWatch countdown duration (e.g., 30m)")
 
-    cedp_p = cnt_sub.add_parser("edit", help="Edit counter metadata")
-    cedp_p.add_argument("query", help="Counter search query")
+    cedp_p = cnt_sub.add_parser("edit", help="Edit counter metadata", parents=[output_parent])
+    cedp_p.add_argument("id", help="Counter ID")
     cedp_p.add_argument("--title", help="New title")
     cedp_p.add_argument("--icon", help="Material icon name")
     cedp_p.add_argument("--track-streaks", action="store_true", default=None, help="Enable streak tracking")
@@ -1025,30 +1263,43 @@ def main():
     cedp_p.add_argument("--streak-days", help="Comma-sep days (0=Sun, 1=Mon...6=Sat) e.g., '1,2,3,4,5'")
     cedp_p.add_argument("--countdown", help="StopWatch countdown duration (e.g., 30m)")
 
-    clog_p = cnt_sub.add_parser("log", help="Set value directly")
-    clog_p.add_argument("query", help="Counter search query")
+    clog_p = cnt_sub.add_parser("log", help="Set value directly", parents=[output_parent])
+    clog_p.add_argument("id", help="Counter ID")
     clog_p.add_argument("value", help="Value (integer, or e.g. 1h for StopWatch)")
     clog_p.add_argument("--date", help="Date YYYY-MM-DD")
 
-    ctog_p = cnt_sub.add_parser("toggle", help="Increment or Toggle running state")
-    ctog_p.add_argument("query", help="Counter search query")
+    ctog_p = cnt_sub.add_parser("toggle", help="Increment or Toggle running state", parents=[output_parent])
+    ctog_p.add_argument("id", help="Counter ID")
 
-    cdel_p = cnt_sub.add_parser("delete", help="Delete counter")
-    cdel_p.add_argument("query", help="Counter search query")
+    cdel_p = cnt_sub.add_parser("delete", help="Delete counter", parents=[output_parent])
+    cdel_p.add_argument("id", help="Counter ID")
+    cdel_p.add_argument("--yes", action="store_true", help="Confirm delete without prompting")
 
     args = parser.parse_args()
+    if not hasattr(args, "json"):
+        args.json = False
+    if not hasattr(args, "ndjson"):
+        args.ndjson = False
+    if not hasattr(args, "full"):
+        args.full = False
+    global OUTPUT_MODE, USE_COLOR
+    OUTPUT_MODE = "json" if args.json else ("ndjson" if args.ndjson else "text")
+    USE_COLOR = supports_color()
 
     # Pre-validation & Dispatch
     read_only_commands = {
         ("status", None),
         ("task", "list"),
+        ("task", "view"),
         ("project", "list"),
+        ("project", "view"),
         ("counter", "list")
     }
 
     dispatch = {
         ("status", None): cmd_status,
         ("task", "list"): cmd_task_list,
+        ("task", "view"): cmd_task_view,
         ("task", "add"): cmd_task_add,
         ("task", "edit"): cmd_task_edit,
         ("task", "done"): cmd_task_done,
@@ -1059,6 +1310,7 @@ def main():
         ("task", "move"): cmd_task_move,
         ("task", "delete"): cmd_task_delete,
         ("project", "list"): cmd_project_list,
+        ("project", "view"): cmd_project_view,
         ("counter", "list"): cmd_counter_list,
         ("counter", "add"): cmd_counter_add,
         ("counter", "edit"): cmd_counter_edit,
