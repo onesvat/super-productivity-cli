@@ -15,16 +15,45 @@ Run `rclone config`, create a new remote, and name it **exactly** `dropbox`. Fol
 
 **3. Python 3.x** is required to run the script.
 
-**4. Install the CLI via pip**  
-You can now install this globally as a CLI tool using pip directly from PyPI:
+**4. Install the CLI**  
+For standalone CLI tools like this, we recommend using **pipx**:
+```bash
+pipx install super-productivity-cli
+```
+Alternatively, using standard pip:
 ```bash
 pip install super-productivity-cli
 ```
 Now you can simply use the `sp` command from anywhere!
 
-*(Note: The CLI config path defaults to `~/.config/super-productivity-cli` for your data and state configs. Alternatively it detects local development paths.)*
+*(Note: The CLI config path defaults to `~/.config/super-productivity-cli` for your data and state configs.)*
 
 ---
+
+## Development
+
+If you want to contribute or run from source:
+
+1. Clone the repo:
+   ```bash
+   git clone https://github.com/onur/super-productivity-cli
+   cd super-productivity-cli
+   ```
+2. Install in editable mode:
+   ```bash
+   pip install -e .
+   ```
+   *Tip: We use [Hatch](https://hatch.pypa.io/) as our build backend.*
+
+## Publishing
+
+This project uses **Trusted Publishing** via GitHub Actions. To release a new version:
+1. Update the version in `pyproject.toml`.
+2. Push a new git tag (e.g., `git tag v0.1.0 && git push --tags`).
+3. GitHub Actions will automatically build and publish the package to PyPI.
+
+---
+
 
 ## Capabilities
 
