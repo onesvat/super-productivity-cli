@@ -21,3 +21,6 @@ Thumbs.db
 build/
 dist/
 *.egg-info/
+
+# Project Tracking
+project-tracking/
