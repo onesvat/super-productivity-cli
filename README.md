@@ -15,7 +15,16 @@ Run `rclone config`, create a new remote, and name it **exactly** `dropbox`. Fol
 
 **3. Python 3.x** is required to run the script.
 
-*(Note: If `rclone` fails or is not configured, the script gracefully falls back to looking for data locally at `data/sync-data.extracted.json`.)*
+**4. Install the CLI via pip**  
+You can now install this globally as a CLI tool using pip:
+```bash
+git clone <repository_url>
+cd super-productivity-cli
+pip install .
+```
+Now you can simply use the `sp` command from anywhere!
+
+*(Note: The CLI config path defaults to `~/.config/super-productivity-cli` for your data and state configs. Alternatively it detects local development paths.)*
 
 ---
 

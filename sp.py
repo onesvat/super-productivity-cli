@@ -12,9 +12,13 @@ from datetime import date
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_FILE = os.path.join(SCRIPT_DIR, "data", "sync-data.extracted.json")
-STATE_FILE = os.path.join(SCRIPT_DIR, ".sp-state.json")
+if os.environ.get("SP_CLI_DEV_MODE") == "1" or os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sync-data.extracted.json")):
+    CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
+else:
+    CONFIG_DIR = os.environ.get("SP_CLI_CONFIG_DIR", os.path.expanduser("~/.config/super-productivity-cli"))
+
+DATA_FILE = os.path.join(CONFIG_DIR, "data", "sync-data.extracted.json")
+STATE_FILE = os.path.join(CONFIG_DIR, ".sp-state.json")
 RCLONE_TARGET = "dropbox:Apps/super_productivity/sync-data.json"
 MAGIC_PREFIX = b"pf_C2__"
 TODAY_TAG_ID = "TODAY"

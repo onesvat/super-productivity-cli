@@ -12,7 +12,9 @@ SP_SCRIPT = os.path.join(BASE_DIR, "sp.py")
 
 def run_cmd(*args):
     print(f"\n▶ Running: sp.py {' '.join(args)}")
-    result = subprocess.run([sys.executable, SP_SCRIPT, *args], capture_output=True, text=True, input="y\n")
+    env = os.environ.copy()
+    env["SP_CLI_DEV_MODE"] = "1"
+    result = subprocess.run([sys.executable, SP_SCRIPT, *args], capture_output=True, text=True, input="y\n", env=env)
     if result.returncode != 0:
         print(f"❌ Command failed with return code {result.returncode}")
         print("STDOUT:\n", result.stdout)
