@@ -8,7 +8,7 @@ import base64
 import gzip
 import uuid
 import time
-from datetime import date
+from datetime import date, datetime
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -477,6 +477,37 @@ def cmd_task_today(args):
     save_data(data)
     print(msg)
 
+def cmd_task_plan(args):
+    data = load_data()
+    task = pick_task(data, args.query)
+    if not task: return
+
+    try:
+        dt_str = f"{args.date} {args.time}"
+        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+        # mktime uses local timezone to convert to UTC timestamp
+        ms_utc = int(time.mktime(dt.timetuple()) * 1000)
+    except ValueError:
+        return print(red("Invalid date or time format. Please use YYYY-MM-DD and HH:MM."))
+
+    task["dueWithTime"] = ms_utc
+    task["remindAt"] = ms_utc
+    task["modified"] = now_ms()
+
+    msgs = []
+    msgs.append(f"due {args.date} {args.time}")
+
+    if args.estimate:
+        try: 
+            est_ms = parse_duration(args.estimate)
+            task["timeEstimate"] = est_ms
+            msgs.append(f"est {fmt_duration(est_ms)}")
+        except ValueError as e:
+            return print(red(str(e)))
+
+    save_data(data)
+    print(green(f"✓ Planned: {bold(task['title'])} ({', '.join(msgs)})"))
+
 def cmd_task_move(args):
     data = load_data()
     task = pick_task(data, args.query)
@@ -817,6 +848,13 @@ def main():
     ttod_p = task_sub.add_parser("today", help="Toggle Today tag")
     ttod_p.add_argument("query", help="Search query")
 
+    # task plan
+    tplan_p = task_sub.add_parser("plan", help="Plan task (set due date/time and optional estimate)")
+    tplan_p.add_argument("query", help="Search query")
+    tplan_p.add_argument("date", help="Due date (YYYY-MM-DD)")
+    tplan_p.add_argument("time", help="Due time (HH:MM)")
+    tplan_p.add_argument("--estimate", "-e", help="Estimate (e.g. 1h30m)")
+
     # task move
     tmov_p = task_sub.add_parser("move", help="Move to project")
     tmov_p.add_argument("query", help="Search query")
@@ -890,6 +928,7 @@ def main():
         ("task", "estimate"): cmd_task_estimate,
         ("task", "log"): cmd_task_log,
         ("task", "today"): cmd_task_today,
+        ("task", "plan"): cmd_task_plan,
         ("task", "move"): cmd_task_move,
         ("task", "delete"): cmd_task_delete,
         ("project", "list"): cmd_project_list,

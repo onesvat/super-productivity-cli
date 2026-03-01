@@ -55,6 +55,7 @@ def main():
         run_cmd("task", "list")
         run_cmd("task", "list", "--today")
         run_cmd("task", "edit", "Task 1", "--title", "Updated Task 1")
+        run_cmd("task", "plan", "Updated Task", "2026-03-05", "14:30", "-e", "2h")
         run_cmd("task", "log", "Updated Task", "30m")
         run_cmd("task", "today", "Updated Task")
         run_cmd("task", "done", "Updated Task")

@@ -94,6 +94,7 @@ sp.py task add "Fix bug #123" --project "Inbox" --estimate 45m
 
 # Edit or Modify
 sp.py task edit "weekly report" --title "Write final report"
+sp.py task plan "report" 2026-03-05 14:30 -e 2h
 sp.py task estimate "report" 2h
 
 # Log Time & Status Updates
