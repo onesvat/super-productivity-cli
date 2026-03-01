@@ -85,10 +85,14 @@ def now_ms() -> int:
     return int(time.time() * 1000)
 
 def fmt_time(ms_utc: int) -> str:
-    """Format UTC millisecond timestamp to local HH:MM string."""
+    """Format UTC millisecond timestamp to local date/time string."""
     if not ms_utc: return ""
     dt = datetime.fromtimestamp(ms_utc / 1000.0)
-    return dt.strftime("%H:%M")
+    d_str = dt.strftime("%Y-%m-%d")
+    t_str = dt.strftime("%H:%M")
+    if d_str == today_str():
+        return t_str
+    return f"{d_str} {t_str}"
 
 # ─── Data loading / saving / syncing ──────────────────────────────────────────
 
@@ -242,13 +246,16 @@ def cmd_status(args):
     per_project = {}
 
     for tid, task in tasks.items():
+        # Exclude subtasks from total to avoid double counting (parent already aggregates subtask time)
+        if task.get("parentId"): continue
+        
         spent_today = task.get("timeSpentOnDay", {}).get(today, 0)
         if spent_today > 0:
             total_ms += spent_today
             pname = project_name(data, task.get("projectId", ""))
             per_project[pname] = per_project.get(pname, 0) + spent_today
 
-    print(f"\n{bold('📊 Today\'s Status')} {dim(f'({today})')}")
+    print(f"\n{bold('📊 Today\'s Status')} {dim(f'({today} {fmt_time(now_ms())})')}")
     print("─" * 50)
 
     # Active counter tracking
@@ -258,31 +265,79 @@ def cmd_status(args):
         active_counter = get_counters(data).get(active_counter_id)
         if active_counter:
             elapsed_ms = now_ms() - state.get("startedAt", now_ms())
+            total_ms += elapsed_ms  # Include active time in total
             print(f"  {green('▶ TRACKING Counter')} {bold(active_counter['title'])}")
             print(f"                     {dim(f'Elapsed this session: {fmt_duration(elapsed_ms)}')}")
             print()
 
     # Today's tasks
-    print(f"  {bold('Today\'s Tasks:')}")
+    planned_timed = []
+    planned_day = []
+    unplanned = []
     if today_task_ids:
-        # Sort tasks: those with dueWithTime first (sorted by time), then the rest
         today_tasks_obj = [tasks.get(tid) for tid in today_task_ids if tasks.get(tid)]
-        today_tasks_obj.sort(key=lambda t: t.get("dueWithTime", float('inf')))
+        
+        # Also add tasks scheduled for today but not tagged with TODAY
+        for tid, task in tasks.items():
+            if tid in today_task_ids: continue
+            if task.get("dueDay") == today or (task.get("dueWithTime") and datetime.fromtimestamp(task.get("dueWithTime")/1000).strftime("%Y-%m-%d") == today):
+                 today_tasks_obj.append(task)
 
-        for task in today_tasks_obj:
+        for t in today_tasks_obj:
+            if t.get("dueWithTime"):
+                planned_timed.append(t)
+            elif t.get("dueDay"):
+                planned_day.append(t)
+            else:
+                unplanned.append(t)
+                
+        planned_timed.sort(key=lambda t: t.get("dueWithTime", 0))
+
+    if planned_timed:
+        print(f"  {bold('📅 Planned Tasks (Timed):')}")
+        for task in planned_timed:
             done_mark = green("✓") if task.get("isDone") else yellow("○")
             spent_today = task.get("timeSpentOnDay", {}).get(today, 0)
             est = task.get("timeEstimate", 0)
             
             due_ms = task.get("dueWithTime")
-            time_icon = yellow(f"⏰ {fmt_time(due_ms)} ") if due_ms else ""
+            time_icon = yellow(f"⏰ {fmt_time(due_ms)} ")
 
             time_info = ""
             if spent_today or est:
                 time_info = dim(f" [{fmt_duration(spent_today)}/{fmt_duration(est)}]")
             print(f"    {time_icon}{done_mark} {task['title']}{time_info}")
-    else:
+        print()
+        
+    if planned_day:
+        print(f"  {bold('📅 Planned Tasks (All-day):')}")
+        for task in planned_day:
+            done_mark = green("✓") if task.get("isDone") else yellow("○")
+            spent_today = task.get("timeSpentOnDay", {}).get(today, 0)
+            est = task.get("timeEstimate", 0)
+            
+            day_str = task.get("dueDay")
+            display_day = "Today" if day_str == today_str() else day_str
+            time_icon = yellow(f"📅 {display_day} ")
+
+            time_info = ""
+            if spent_today or est:
+                time_info = dim(f" [{fmt_duration(spent_today)}/{fmt_duration(est)}]")
+            print(f"    {time_icon}{done_mark} {task['title']}{time_info}")
+        print()
+    
+    title = "🌤 Other Tasks Today:" if (planned_timed or planned_day) else "🌤 Today's Tasks:"
+    print(f"  {bold(title)}")
+    if not unplanned and not planned_timed and not planned_day:
         print(f"    {dim('No tasks tagged for today')}")
+    for task in unplanned:
+        done_mark = green("✓") if task.get("isDone") else yellow("○")
+        spent_today = task.get("timeSpentOnDay", {}).get(today, 0)
+        est = task.get("timeEstimate", 0)
+        time_info = ""
+        if spent_today or est:
+            time_info = dim(f" [{fmt_duration(spent_today)}/{fmt_duration(est)}]")
+        print(f"    {done_mark} {task['title']}{time_info}")
 
     print()
     print(f"  {bold('Total time:')} {cyan(fmt_duration(total_ms))}")
@@ -312,6 +367,9 @@ def cmd_task_list(args):
             print(red(f"Project '{args.project}' not found"))
             return
 
+    from datetime import timedelta
+    tmrw_str = (date.today() + timedelta(days=1)).isoformat()
+
     rows = []
     for tid in get_task_ids(data):
         task = tasks.get(tid)
@@ -320,6 +378,17 @@ def cmd_task_list(args):
         if args.done and not task.get("isDone"): continue
         if filter_pid and task.get("projectId") != filter_pid: continue
         if args.today and tid not in today_task_ids: continue
+        
+        is_scheduled = bool(task.get("dueWithTime") or task.get("dueDay"))
+        if args.scheduled and not is_scheduled: continue
+        
+        d_str = task.get("dueDay")
+        if not d_str and task.get("dueWithTime"):
+            d_str = datetime.fromtimestamp(task.get("dueWithTime") / 1000.0).strftime("%Y-%m-%d")
+            
+        if args.tomorrow and d_str != tmrw_str: continue
+        if args.date and d_str != args.date: continue
+        
         if not filter_pid and task.get("parentId"): continue
         rows.append(task)
 
@@ -327,21 +396,30 @@ def cmd_task_list(args):
         print(dim("No tasks found."))
         return
 
-    # If --today flag is used, sort by due time for a better day plan view
-    if args.today:
-        rows.sort(key=lambda t: t.get("dueWithTime", float('inf')))
+    planned_timed = [t for t in rows if t.get("dueWithTime")]
+    planned_day = [t for t in rows if t.get("dueDay") and not t.get("dueWithTime")]
+    unplanned = [t for t in rows if not t.get("dueWithTime") and not t.get("dueDay")]
+    
+    planned_timed.sort(key=lambda t: t.get("dueWithTime", 0))
+    planned_day.sort(key=lambda t: t.get("dueDay", ""))
 
-    print()
-    for task in rows:
+    def print_task_row(task, show_time=False, show_day=False):
         tid = task["id"]
         is_today = tid in today_task_ids
         is_done  = task.get("isDone")
         
-        due_ms = task.get("dueWithTime")
-        time_icon = yellow(f"⏰ {fmt_time(due_ms)} ") if due_ms and is_today else ""
+        time_icon = ""
+        if show_time:
+            due_ms = task.get("dueWithTime")
+            time_icon = yellow(f"⏰ {fmt_time(due_ms)} ") if due_ms else ""
+        elif show_day:
+            day_str = task.get("dueDay")
+            if day_str:
+                display_day = "Today" if day_str == today_str() else day_str
+                time_icon = yellow(f"📅 {display_day} ")
 
         done_icon  = green("✓") if is_done else yellow("○")
-        today_icon = cyan("🌤") + " " + time_icon if is_today else "   "
+        today_icon = cyan("🌤") + " " if is_today else "   "
         pname = project_name(data, task.get("projectId", ""))
 
         spent_today = task.get("timeSpentOnDay", {}).get(today, 0)
@@ -358,8 +436,27 @@ def cmd_task_list(args):
         sub_str = dim(f" (+{len(sub_ids)} subtasks)") if sub_ids else ""
 
         title = task['title']
-        print(f"  {today_icon}{done_icon} {title}{sub_str}{time_str}  {dim(f'[{pname}]')}")
+        print(f"  {today_icon}{time_icon}{done_icon} {title}{sub_str}{time_str}  {dim(f'[{pname}]')}")
+
     print()
+    if planned_timed:
+        print(bold("📅 Planned Tasks (Timed):"))
+        for t in planned_timed:
+            print_task_row(t, show_time=True)
+        print()
+
+    if planned_day:
+        print(bold("📅 Planned Tasks (All-day):"))
+        for t in planned_day:
+            print_task_row(t, show_day=True)
+        print()
+
+    if unplanned:
+        title = "🌤 Other Tasks Today:" if args.today else "📝 Other Tasks:"
+        print(bold(title))
+        for t in unplanned:
+            print_task_row(t)
+        print()
 
 def cmd_task_add(args):
     data = load_data()
@@ -502,19 +599,27 @@ def cmd_task_plan(args):
     if not task: return
 
     try:
-        dt_str = f"{args.date} {args.time}"
-        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
-        # mktime uses local timezone to convert to UTC timestamp
-        ms_utc = int(time.mktime(dt.timetuple()) * 1000)
+        # Validate date
+        datetime.strptime(args.date, "%Y-%m-%d")
+        task["dueDay"] = args.date
+        
+        if args.time:
+            dt_str = f"{args.date} {args.time}"
+            dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+            ms_utc = int(time.mktime(dt.timetuple()) * 1000)
+            task["dueWithTime"] = ms_utc
+            task["remindAt"] = ms_utc
+            msg_dt = f"due {args.date} {args.time}"
+        else:
+            task.pop("dueWithTime", None)
+            task.pop("remindAt", None)
+            msg_dt = f"due {args.date} (All-day)"
     except ValueError:
-        return print(red("Invalid date or time format. Please use YYYY-MM-DD and HH:MM."))
+        return print(red("Invalid date or time format. Please use YYYY-MM-DD and optionally HH:MM."))
 
-    task["dueWithTime"] = ms_utc
-    task["remindAt"] = ms_utc
     task["modified"] = now_ms()
 
-    msgs = []
-    msgs.append(f"due {args.date} {args.time}")
+    msgs = [msg_dt]
 
     if args.estimate:
         try: 
@@ -836,6 +941,9 @@ def main():
     tl_p.add_argument("--project", "-p", help="Filter by project")
     tl_p.add_argument("--done", "-d", action="store_true", help="Show done tasks")
     tl_p.add_argument("--today", "-t", action="store_true", help="Only Today tasks")
+    tl_p.add_argument("--tomorrow", action="store_true", help="Only Tomorrow tasks")
+    tl_p.add_argument("--date", help="Filter by due date (YYYY-MM-DD)")
+    tl_p.add_argument("--scheduled", action="store_true", help="Only scheduled tasks (any date)")
 
     # task add
     ta_p = task_sub.add_parser("add", help="Add task")
@@ -868,10 +976,10 @@ def main():
     ttod_p.add_argument("query", help="Search query")
 
     # task plan
-    tplan_p = task_sub.add_parser("plan", help="Plan task (set due date/time and optional estimate)")
+    tplan_p = task_sub.add_parser("plan", help="Plan task (set due date, optional time and estimate)")
     tplan_p.add_argument("query", help="Search query")
     tplan_p.add_argument("date", help="Due date (YYYY-MM-DD)")
-    tplan_p.add_argument("time", help="Due time (HH:MM)")
+    tplan_p.add_argument("time", nargs="?", help="Due time (HH:MM) - Optional")
     tplan_p.add_argument("--estimate", "-e", help="Estimate (e.g. 1h30m)")
 
     # task move

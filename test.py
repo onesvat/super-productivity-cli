@@ -8,10 +8,10 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 DATA_FILE = os.path.join(DATA_DIR, "sync-data.extracted.json")
 BACKUP_FILE = os.path.join(DATA_DIR, "sync-data.extracted.json.bak")
 DEMO_FILE = os.path.join(BASE_DIR, "demo.json")
-SP_SCRIPT = os.path.join(BASE_DIR, "super_productivity_cli.py")
+SP_SCRIPT = os.path.join(BASE_DIR, "sp.py")
 
 def run_sp(*args):
-    print(f"\n▶ Running: super_productivity_cli.py {' '.join(args)}")
+    print(f"\n▶ Running: sp.py {' '.join(args)}")
     env = os.environ.copy()
     env["SP_CLI_DEV_MODE"] = "1"
     result = subprocess.run([sys.executable, SP_SCRIPT, *args], capture_output=True, text=True, input="y\n", env=env)

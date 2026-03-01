@@ -74,38 +74,38 @@ The CLI behaves just like `git` or `docker`. You pass an endpoint (`task`, `proj
 See a quick daily summary of active tracking, unticked tasks for today, total time spent, and project distribution.
 
 ```bash
-sp.py status
+sp status
 ```
 
 ### 📋 Task Management (`sp task`)
 
 ```bash
 # List all tasks
-sp.py task list
+sp task list
 
 # Filter tasks
-sp.py task list --today
-sp.py task list --done
-sp.py task list --project "Work"
+sp task list --today
+sp task list --done
+sp task list --project "Work"
 
 # Setup tasks
-sp.py task add "Write weekly report"
-sp.py task add "Fix bug #123" --project "Inbox" --estimate 45m
+sp task add "Write weekly report"
+sp task add "Fix bug #123" --project "Inbox" --estimate 45m
 
 # Edit or Modify
-sp.py task edit "weekly report" --title "Write final report"
-sp.py task plan "report" 2026-03-05 14:30 -e 2h
-sp.py task estimate "report" 2h
+sp task edit "weekly report" --title "Write final report"
+sp task plan "report" 2026-03-05 14:30 -e 2h
+sp task estimate "report" 2h
 
 # Log Time & Status Updates
-sp.py task log "report" 1h30m         # Log 1 hour and 30 minutes
-sp.py task log "report" 2h --date 2026-02-28 # Log time for a past date
-sp.py task done "bug"                 # Mask task as done
-sp.py task today "report"             # Toggle task on Today's list
-sp.py task move "bug" --project Work  # Move task to another project
+sp task log "report" 1h30m         # Log 1 hour and 30 minutes
+sp task log "report" 2h --date 2026-02-28 # Log time for a past date
+sp task done "bug"                 # Mask task as done
+sp task today "report"             # Toggle task on Today's list
+sp task move "bug" --project Work  # Move task to another project
 
 # Delete
-sp.py task delete "bug"
+sp task delete "bug"
 ```
 
 *Note: `sp task start` and `sp task stop` are not provided as active session states are stored client-side in the Super Productivity frontend.*
@@ -116,15 +116,15 @@ Supports two native types: **StopWatches** (tracking durations) and **ClickCount
 
 ```bash
 # List all counters
-sp.py counter list
+sp counter list
 
 # Quickly toggle a state:
-sp.py counter toggle "water"       # Increments a ClickCounter (+1)
-sp.py counter toggle "stand desk"  # Starts or Pauses a StopWatch
+sp counter toggle "water"       # Increments a ClickCounter (+1)
+sp counter toggle "stand desk"  # Starts or Pauses a StopWatch
 
 # Manually log values
-sp.py counter log "water" 5
-sp.py counter log "stand desk" 1h
+sp counter log "water" 5
+sp counter log "stand desk" 1h
 ```
 
 **Advanced Counter Creation & Editing**
@@ -133,33 +133,33 @@ It natively supports Super Productivity's streak tracker, schedules, icons, and 
 
 ```bash
 # Create simple ClickCounter
-sp.py counter add "Drink Water" --type ClickCounter --icon "local_drink"
+sp counter add "Drink Water" --type ClickCounter --icon "local_drink"
 
 # Create a StopWatch that counts down
-sp.py counter add "Reading Session" --type StopWatch --countdown 30m --icon "menu_book"
+sp counter add "Reading Session" --type StopWatch --countdown 30m --icon "menu_book"
 
 # Create a habit with specific streak days (1=Mon ... 5=Fri)
-sp.py counter add "Work out" --type ClickCounter \
+sp counter add "Work out" --type ClickCounter \
     --track-streaks \
     --streak-min 1 \
     --streak-days "1,2,3,4,5" \
     --icon "fitness_center"
 
 # Create a habit for exactly 3 times a week (Frequency Streak)
-sp.py counter add "Call Parents" --type ClickCounter \
+sp counter add "Call Parents" --type ClickCounter \
     --track-streaks \
     --streak-mode weekly-frequency \
     --streak-freq 3
 
 # Edit an existing counter
-sp.py counter edit "Work out" --title "Gym" --streak-freq 4
+sp counter edit "Work out" --title "Gym" --streak-freq 4
 ```
 
 ### 📁 Project Management (`sp project`)
 
 ```bash
 # List existing projects
-sp.py project list
+sp project list
 ```
 
 ---
