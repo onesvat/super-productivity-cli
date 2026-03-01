@@ -16,11 +16,9 @@ Run `rclone config`, create a new remote, and name it **exactly** `dropbox`. Fol
 **3. Python 3.x** is required to run the script.
 
 **4. Install the CLI via pip**  
-You can now install this globally as a CLI tool using pip:
+You can now install this globally as a CLI tool using pip directly from PyPI:
 ```bash
-git clone <repository_url>
-cd super-productivity-cli
-pip install .
+pip install super-productivity-cli
 ```
 Now you can simply use the `sp` command from anywhere!
 
