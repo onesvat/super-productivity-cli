@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync } from "fs";
-import { join } from "path";
-import { homedir } from "os";
+import { existsSync, mkdirSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { homedir } from "node:os";
 
 const CONFIG_DIR =
   process.env.SP_CLI_CONFIG_DIR || join(homedir(), ".config/super-productivity-cli");
@@ -24,16 +25,17 @@ export const ensureConfigDir = (): void => {
 
 export const loadConfig = async (): Promise<Config> => {
   ensureConfigDir();
-  const file = Bun.file(CONFIG_FILE);
-  if (!(await file.exists())) {
+  try {
+    const content = await readFile(CONFIG_FILE, "utf-8");
+    return JSON.parse(content);
+  } catch {
     return {};
   }
-  return JSON.parse(await file.text());
 };
 
 export const saveConfig = async (config: Config): Promise<void> => {
   ensureConfigDir();
-  await Bun.write(CONFIG_FILE, JSON.stringify(config, null, 2));
+  await writeFile(CONFIG_FILE, JSON.stringify(config, null, 2));
 };
 
 export const getDropboxConfig = async (): Promise<DropboxConfig | null> => {

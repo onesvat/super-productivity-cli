@@ -1,4 +1,4 @@
-import { SyncData } from "./sync-processor";
+import { SyncData } from "./sync-processor.js";
 
 const TODAY_TAG_ID = "TODAY";
 

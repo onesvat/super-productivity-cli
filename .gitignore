@@ -2,23 +2,18 @@
 node_modules/
 
 # Build output
-sp
 dist/
-
-# Config (user-specific)
-config.json
-
-# Local data
-data/
-
-# OS Files
-.DS_Store
-Thumbs.db
+sp
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-# Binary
-sp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Lock files (optional - remove if you want to commit)
+bun.lock

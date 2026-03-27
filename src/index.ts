@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import { Command } from "commander";
 import {
   loginCommand,
@@ -7,8 +7,8 @@ import {
   statusCommand,
   taskCommand,
   projectCommand,
-} from "./commands";
-import { getDropboxConfig } from "./lib/config";
+} from "./commands/index.js";
+import { getDropboxConfig } from "./lib/config.js";
 
 const VERSION = "1.0.0";
 

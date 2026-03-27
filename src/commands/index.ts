@@ -5,9 +5,9 @@ import {
   logout,
   downloadFile,
   DROPBOX_SYNC_FILE_PATH,
-} from "../lib/dropbox";
-import { processSyncFile, SyncData } from "../lib/sync-processor";
-import { setEncryptKey, clearEncryptKey, getDropboxConfig, setDropboxConfig } from "../lib/config";
+} from "../lib/dropbox.js";
+import { processSyncFile, SyncData } from "../lib/sync-processor.js";
+import { setEncryptKey, clearEncryptKey, getDropboxConfig, setDropboxConfig } from "../lib/config.js";
 import {
   getTasks,
   getTaskIds,
@@ -19,7 +19,7 @@ import {
   fmtTime,
   todayStr,
   serializeTask,
-} from "../lib/data-helpers";
+} from "../lib/data-helpers.js";
 
 const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;

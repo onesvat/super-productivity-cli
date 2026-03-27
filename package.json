@@ -1,19 +1,20 @@
 {
-  "name": "@super-productivity/cli",
+  "name": "@onesvat/super-productivity-cli",
   "version": "1.0.0",
   "description": "CLI for Super Productivity - Access your tasks from the command line",
   "type": "module",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
   "bin": {
-    "sp": "./src/index.ts"
+    "sp": "./dist/index.js"
   },
   "scripts": {
-    "start": "bun run src/index.ts",
-    "build": "bun build src/index.ts --compile --outfile sp",
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "start": "node dist/index.js",
     "dev": "bun --watch src/index.ts"
   },
   "files": [
-    "src/",
+    "dist/",
     "README.md",
     "LICENSE"
   ],
@@ -25,21 +26,18 @@
     "dropbox",
     "time-tracking"
   ],
-  "author": "Super Productivity",
+  "author": "Onur Enes Şavat",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/johannesjo/super-productivity-cli.git"
+    "url": "git+https://github.com/onesvat/super-productivity-cli.git"
   },
-  "homepage": "https://github.com/johannesjo/super-productivity-cli#readme",
+  "homepage": "https://github.com/onesvat/super-productivity-cli#readme",
   "bugs": {
-    "url": "https://github.com/johannesjo/super-productivity-cli/issues"
-  },
-  "engines": {
-    "bun": ">=1.0.0"
+    "url": "https://github.com/onesvat/super-productivity-cli/issues"
   },
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/node": "^22.0.0",
     "typescript": "^5"
   },
   "dependencies": {

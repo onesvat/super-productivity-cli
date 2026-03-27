@@ -46,7 +46,7 @@ export const compressWithGzipToString = async (input: string): Promise<string> =
 export const decompressGzip = async (compressed: Uint8Array): Promise<string> => {
   const stream = new DecompressionStream("gzip");
   const writer = stream.writable.getWriter();
-  writer.write(compressed);
+  writer.write(compressed as BufferSource);
   writer.close();
   const decompressed = await readAllBytes(stream.readable);
   return new TextDecoder().decode(decompressed);

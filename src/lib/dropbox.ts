@@ -2,7 +2,7 @@ import {
   getDropboxConfig,
   setDropboxConfig,
   clearDropboxTokens,
-} from "./config";
+} from "./config.js";
 
 export const DROPBOX_APP_KEY = "m7w85uty7m745ph";
 export const DROPBOX_SYNC_FILE_PATH = "/sync-data.json";

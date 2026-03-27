@@ -1,7 +1,7 @@
-import { extractSyncFileStateFromPrefix } from "./sync-file";
-import { decompressGzip, decompressGzipFromString } from "./compression";
-import { decrypt } from "./encryption";
-import { getDropboxConfig } from "./config";
+import { extractSyncFileStateFromPrefix } from "./sync-file.js";
+import { decompressGzip, decompressGzipFromString } from "./compression.js";
+import { decrypt } from "./encryption.js";
+import { getDropboxConfig } from "./config.js";
 
 export interface SyncData {
   version: number;
@@ -45,7 +45,7 @@ const fixUtf8Corruption = (bytes: Uint8Array): Uint8Array => {
       i += 1;
     }
   }
-  return new Uint8Array(result);
+  return Uint8Array.from(result);
 };
 
 const isGzip = (bytes: Uint8Array): boolean => {
@@ -101,11 +101,10 @@ export const processSyncFile = async (
   }
 
   const encoder = new TextEncoder();
-  let bytes = encoder.encode(text);
-
-  if (bytes[0] === 0x1f && bytes[1] === 0xc2) {
-    bytes = fixUtf8Corruption(bytes);
-  }
+  const encodedBytes = encoder.encode(text);
+  const bytes = (encodedBytes[0] === 0x1f && encodedBytes[1] === 0xc2)
+    ? fixUtf8Corruption(encodedBytes)
+    : encodedBytes;
 
   if (isGzip(bytes)) {
     try {
