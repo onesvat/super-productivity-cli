@@ -1,13 +1,21 @@
 # Super Productivity CLI
 
-Command line interface for Super Productivity with native Dropbox sync support.
+A command-line interface for [Super Productivity](https://github.com/super-productivity/super-productivity) to view your tasks from the terminal.
+
+> **Note:** This is an unofficial CLI and is not affiliated with the Super Productivity project.
+
+## Overview
+
+This CLI provides read-only access to your Super Productivity data stored in Dropbox. It allows you to quickly check your tasks, projects, and today's status without opening the main application.
+
+**Why read-only?** Super Productivity uses a complex internal sync mechanism with operation logs, vector clocks, and conflict resolution. Supporting write operations would require replicating this entire sync infrastructure, which is beyond the scope of this CLI. For modifying tasks, please use the main [Super Productivity app](https://github.com/super-productivity/super-productivity).
 
 ## Features
 
-- **Native Dropbox API** - No rclone dependency, direct OAuth authentication
+- **Native Dropbox API** - Direct OAuth authentication, no rclone or external tools needed
 - **Encryption Support** - Decrypt sync files encrypted with AES-256-GCM + Argon2id
 - **Compression Support** - Handle gzip-compressed sync files
-- **Same App Key** - Uses the same Dropbox app as Super Productivity
+- **JSON Output** - All commands support `--json` for scripting and automation
 
 ## Requirements
 
@@ -28,20 +36,29 @@ sp --help
 ## Quick Start
 
 ```bash
-# Login to Dropbox
+# Login to Dropbox (one-time setup)
 sp login
 
 # (Optional) Set encryption password if your sync is encrypted
 sp encrypt-key "your-password"
 
-# View today's status
+# View today's summary
 sp status
 
-# List tasks
+# List all tasks
 sp task list
+
+# List tasks due today
+sp task list --today
+
+# List overdue tasks
+sp task list --past-due
 
 # Search tasks
 sp task search "report"
+
+# List projects
+sp project list
 ```
 
 ## Commands
@@ -59,32 +76,30 @@ sp task search "report"
 
 | Command | Description |
 |---------|-------------|
-| `sp task list` | List tasks |
+| `sp task list` | List all incomplete tasks |
+| `sp task list --today` | Tasks due today or tagged TODAY |
+| `sp task list --past-due` | Overdue incomplete tasks |
+| `sp task list --done` | Show completed tasks |
+| `sp task list --project "Work"` | Filter by project |
 | `sp task search <query>` | Search tasks by title |
-
-**List options:**
-- `-p, --project <name>` - Filter by project
-- `-d, --done` - Show completed tasks
-- `-t, --today` - Tasks due today or tagged TODAY
-- `--past-due` - Only past-due incomplete tasks
-- `--json` - Output as JSON
+| `sp task list --json` | Output as JSON |
 
 ### Projects
 
 | Command | Description |
 |---------|-------------|
-| `sp project list` | List all projects |
+| `sp project list` | List all projects with task counts |
 
 ### Status
 
 | Command | Description |
 |---------|-------------|
-| `sp status` | Show today's summary with time by project |
-| `sp status --json` | Today's status as JSON |
+| `sp status` | Today's summary with time spent by project |
+| `sp status --json` | Today's status as JSON (for scripting) |
 
 ## Encryption
 
-If you've enabled encryption in Super Productivity's sync settings, set your encryption password:
+If you've enabled encryption in Super Productivity's Dropbox sync settings, set your encryption password:
 
 ```bash
 sp encrypt-key "your-encryption-password"
@@ -95,22 +110,20 @@ The CLI uses the same encryption as the main app:
 - **Key Derivation**: Argon2id (64MB memory, 3 iterations)
 - **Format**: Same prefix-based format as Super Productivity
 
-## File Format
+## JSON Output
 
-The CLI handles Super Productivity's sync file (`/sync-data.json` on Dropbox):
+All list commands support `--json` for use in scripts:
 
+```bash
+# Get today's tasks as JSON
+sp task list --today --json
+
+# Parse with jq
+sp status --json | jq '.tasks.plannedDay'
+
+# Use in scripts
+sp task search "urgent" --json | node process-tasks.js
 ```
-pf_[C][E]<version>__<payload>
-```
-
-- `C` = gzip compressed
-- `E` = AES-256-GCM encrypted
-- `<version>` = model version number
-
-Examples:
-- `pf_2__` - Plain JSON, version 2
-- `pf_C2__` - Compressed, version 2
-- `pf_CE2__` - Compressed + Encrypted, version 2
 
 ## Configuration
 
@@ -126,20 +139,9 @@ Config stored at `~/.config/super-productivity-cli/config.json`:
 }
 ```
 
-## Development
+## Related Projects
 
-```bash
-# Clone and install
-git clone https://github.com/onesvat/super-productivity-cli.git
-cd super-productivity-cli
-npm install
-
-# Build
-npm run build
-
-# Run
-node dist/index.js --help
-```
+- [Super Productivity](https://github.com/super-productivity/super-productivity) - The main application (Desktop, Mobile, Web)
 
 ## License
 
