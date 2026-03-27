@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "super-productivity-cli"
-version = "0.2"
+version = "0.2.1"
 description = "A fast, lightweight, and powerful Command Line Interface for Super Productivity"
 readme = "README.md"
 requires-python = ">=3.7"
