@@ -1,0 +1,119 @@
+Metadata-Version: 2.4
+Name: super-productivity-cli
+Version: 0.1.2
+Summary: A fast, lightweight, and powerful Command Line Interface for Super Productivity
+Project-URL: Homepage, https://github.com/onesvat/super-productivity-cli
+Project-URL: Repository, https://github.com/onesvat/super-productivity-cli.git
+Project-URL: Bug Tracker, https://github.com/onesvat/super-productivity-cli/issues
+Author-email: Onur NESVAT <onurnesvat@gmail.com>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: cli,productivity,super-productivity,task-manager,time-tracking
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: End Users/Desktop
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Office/Business :: Scheduling
+Classifier: Topic :: Utilities
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+
+# Super Productivity CLI (`sp.py`)
+
+Command line interface for Super Productivity data with local file edits and optional `rclone` sync.
+
+## Requirements
+
+- Python 3
+- `rclone` configured with a remote named `dropbox` (for cloud sync)
+- Super Productivity Dropbox sync enabled
+
+## CLI Structure
+
+```bash
+$ sp --help
+usage: sp [-h] [--json | --ndjson] [--full] {status,task,project,counter} ...
+
+Super Productivity CLI
+
+positional arguments:
+  {status,task,project,counter}
+    status              Show today's summary
+    task                Task management commands
+    project             Project management
+    counter             Counter management
+
+options:
+  -h, --help            show this help message and exit
+  --json                Emit JSON output
+  --ndjson              Emit NDJSON output
+  --full                Include full entity payload in JSON/NDJSON output
+```
+
+Task and counter subcommands:
+
+- `sp task --help` includes `list, view, search, add, edit, done, estimate, log, today, plan, move, delete`
+- `sp counter --help` includes `list, search, add, edit, log, toggle, delete`
+
+## ID-Based Operations
+
+All mutating commands use IDs, not fuzzy title matching.
+
+- Task by ID: `view`, `edit`, `done`, `estimate`, `log`, `today`, `plan`, `move`, `delete`
+- Counter by ID: `edit`, `log`, `toggle`, `delete`
+
+Use `list` or `search` first to find IDs.
+
+## Output Flags
+
+- `--json`: JSON array/object output for scripts
+- `--ndjson`: one JSON object per line
+- `--full`: include full entity payload (primarily useful with JSON/NDJSON)
+
+Examples:
+
+- `sp task list --json`
+- `sp status --ndjson`
+- `sp counter list --json --full`
+
+## Search Commands
+
+Search supports:
+
+- Plain text: case-insensitive substring match
+- Wildcard `*`: matches any characters
+
+Commands:
+
+- `sp task search <query> [--json] [--ndjson] [--full]`
+- `sp counter search <query> [--json] [--ndjson] [--full]`
+
+Examples:
+
+- `sp task search "greek" --json`
+- `sp task search "open*"`
+- `sp counter search "coffee"`
+
+## Common Workflows
+
+- Inspect today: `sp status`
+- Find a task ID: `sp task search "report"`
+- Edit a task by ID: `sp task edit <task-id> --title "Weekly report"`
+- Plan and estimate: `sp task plan <task-id> 2026-03-05 14:30 --estimate 2h`
+- Track completion: `sp task done <task-id>`
+- Find counter ID and toggle: `sp counter search "water"` then `sp counter toggle <counter-id>`
+
+## AI/LLM Agent Note
+
+From `sp --help`:
+
+- Note for AI/LLM agents: Use `--json` or `--ndjson` flags for unambiguous, parseable output.
+- Default JSON shows essential fields; use `--full` for all fields.
+- All operations use IDs (not fuzzy matching) for reliability.
