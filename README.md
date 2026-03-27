@@ -11,23 +11,18 @@ Command line interface for Super Productivity with native Dropbox sync support.
 
 ## Requirements
 
-- [Bun](https://bun.sh) runtime
+- Node.js 18+
 - Super Productivity with Dropbox sync enabled
 
 ## Installation
 
 ```bash
-# Clone and install
-git clone https://github.com/your-repo/super-productivity-cli.git
-cd super-productivity-cli
-bun install
+# Run directly with npx (no installation required)
+npx super-productivity-cli --help
 
-# Run directly
-bun run src/index.ts --help
-
-# Or build a standalone binary
-bun run build
-./sp --help
+# Or install globally
+npm install -g super-productivity-cli
+sp --help
 ```
 
 ## Quick Start
@@ -134,14 +129,16 @@ Config stored at `~/.config/super-productivity-cli/config.json`:
 ## Development
 
 ```bash
-# Run in dev mode with auto-reload
-bun dev
+# Clone and install
+git clone https://github.com/onesvat/super-productivity-cli.git
+cd super-productivity-cli
+npm install
 
-# Build standalone binary
-bun run build
+# Build
+npm run build
 
-# Run tests
-bun test
+# Run
+node dist/index.js --help
 ```
 
 ## License
