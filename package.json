@@ -1,6 +1,6 @@
 {
   "name": "super-productivity-cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CLI for Super Productivity - Access your tasks from the command line",
   "type": "module",
   "main": "dist/index.js",
