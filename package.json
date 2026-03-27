@@ -1,0 +1,50 @@
+{
+  "name": "@super-productivity/cli",
+  "version": "1.0.0",
+  "description": "CLI for Super Productivity - Access your tasks from the command line",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "sp": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --compile --outfile sp",
+    "dev": "bun --watch src/index.ts"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "super-productivity",
+    "cli",
+    "task-manager",
+    "productivity",
+    "dropbox",
+    "time-tracking"
+  ],
+  "author": "Super Productivity",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/johannesjo/super-productivity-cli.git"
+  },
+  "homepage": "https://github.com/johannesjo/super-productivity-cli#readme",
+  "bugs": {
+    "url": "https://github.com/johannesjo/super-productivity-cli/issues"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@noble/ciphers": "^2.1.1",
+    "commander": "^14.0.3",
+    "hash-wasm": "^4.12.0"
+  }
+}

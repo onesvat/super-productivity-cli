@@ -1,134 +1,149 @@
-# Super Productivity CLI (`sp.py`)
+# Super Productivity CLI
 
-Read-only command line interface for Super Productivity data with `rclone` Dropbox sync.
+Command line interface for Super Productivity with native Dropbox sync support.
+
+## Features
+
+- **Native Dropbox API** - No rclone dependency, direct OAuth authentication
+- **Encryption Support** - Decrypt sync files encrypted with AES-256-GCM + Argon2id
+- **Compression Support** - Handle gzip-compressed sync files
+- **Same App Key** - Uses the same Dropbox app as Super Productivity
 
 ## Requirements
 
-- Python 3
-- `rclone` configured with a remote named `dropbox`
-- Super Productivity Dropbox sync enabled
+- [Bun](https://bun.sh) runtime
+- Super Productivity with Dropbox sync enabled
 
-## Setup
-
-1. Install rclone: `curl https://rclone.org/install.sh | sudo bash`
-2. Configure Dropbox: `rclone config` → New remote → Name it `dropbox` → Choose Dropbox → Follow auth flow
-3. Enable Dropbox sync in Super Productivity app settings
-
-## CLI Structure
+## Installation
 
 ```bash
-$ sp --help
-usage: sp [-h] [--json | --ndjson] [--full] {status,yesterday,task,project,counter} ...
+# Clone and install
+git clone https://github.com/your-repo/super-productivity-cli.git
+cd super-productivity-cli
+bun install
 
-Super Productivity CLI (Read-Only Mode)
+# Run directly
+bun run src/index.ts --help
 
-positional arguments:
-  {status,yesterday,task,project,counter}
-    status              Show today's summary
-    yesterday           Show yesterday's report
-    task                Task commands (read-only)
-    project             Project commands (read-only)
-    counter             Counter commands (read-only)
+# Or build a standalone binary
+bun run build
+./sp --help
+```
 
-options:
-  -h, --help            show this help message and exit
-  --json                Emit JSON output
-  --ndjson              Emit NDJSON output
-  --full                Include full entity payload in JSON/NDJSON output
+## Quick Start
+
+```bash
+# Login to Dropbox
+sp login
+
+# (Optional) Set encryption password if your sync is encrypted
+sp encrypt-key "your-password"
+
+# View today's status
+sp status
+
+# List tasks
+sp task list
+
+# Search tasks
+sp task search "report"
 ```
 
 ## Commands
 
-### Reports
+### Authentication
 
 | Command | Description |
 |---------|-------------|
-| `sp status` | Today's summary with tasks and time by project |
-| `sp yesterday` | Yesterday's report with tasks and time |
+| `sp login` | Authenticate with Dropbox via OAuth |
+| `sp logout` | Clear stored tokens |
+| `sp encrypt-key <password>` | Set encryption password |
+| `sp encrypt-key --clear` | Remove encryption password |
 
-### Tasks (Read-Only)
+### Tasks
 
 | Command | Description |
 |---------|-------------|
-| `sp task list [options]` | List tasks with filters |
-| `sp task view <id>` | View task details |
+| `sp task list` | List tasks |
 | `sp task search <query>` | Search tasks by title |
 
-**List filters:**
-- `--project, -p <id>` - Filter by project
-- `--done, -d` - Show completed tasks
-- `--today, -t` - Only today's tasks
-- `--tomorrow` - Only tomorrow's tasks
-- `--date YYYY-MM-DD` - Filter by due date
-- `--scheduled` - Only scheduled tasks
+**List options:**
+- `-p, --project <name>` - Filter by project
+- `-d, --done` - Show completed tasks
+- `-t, --today` - Tasks due today or tagged TODAY
+- `--past-due` - Only past-due incomplete tasks
+- `--json` - Output as JSON
 
-### Projects (Read-Only)
+### Projects
 
 | Command | Description |
 |---------|-------------|
 | `sp project list` | List all projects |
-| `sp project view <id>` | View project details |
 
-### Counters (Read-Only)
+### Status
 
 | Command | Description |
 |---------|-------------|
-| `sp counter list` | List all counters |
-| `sp counter search <query>` | Search counters by title |
+| `sp status` | Show today's summary with time by project |
+| `sp status --json` | Today's status as JSON |
 
-## Output Flags
+## Encryption
 
-- `--json`: JSON output for scripts/AI agents
-- `--ndjson`: One JSON object per line
-- `--full`: Include full entity payload
+If you've enabled encryption in Super Productivity's sync settings, set your encryption password:
+
+```bash
+sp encrypt-key "your-encryption-password"
+```
+
+The CLI uses the same encryption as the main app:
+- **Algorithm**: AES-256-GCM
+- **Key Derivation**: Argon2id (64MB memory, 3 iterations)
+- **Format**: Same prefix-based format as Super Productivity
+
+## File Format
+
+The CLI handles Super Productivity's sync file (`/sync-data.json` on Dropbox):
+
+```
+pf_[C][E]<version>__<payload>
+```
+
+- `C` = gzip compressed
+- `E` = AES-256-GCM encrypted
+- `<version>` = model version number
 
 Examples:
-```bash
-sp status --json
-sp task list --today --json
-sp task search "report" --ndjson
+- `pf_2__` - Plain JSON, version 2
+- `pf_C2__` - Compressed, version 2
+- `pf_CE2__` - Compressed + Encrypted, version 2
+
+## Configuration
+
+Config stored at `~/.config/super-productivity-cli/config.json`:
+
+```json
+{
+  "dropbox": {
+    "accessToken": "...",
+    "refreshToken": "...",
+    "encryptKey": "optional-password"
+  }
+}
 ```
 
-## Search
-
-Search supports:
-- Plain text: case-insensitive substring match
-- Wildcard `*`: matches any characters
-
-Examples:
-```bash
-sp task search "greek"
-sp task search "open*"
-sp counter search "coffee"
-```
-
-## Common Workflows
+## Development
 
 ```bash
-# Check today's status
-sp status
+# Run in dev mode with auto-reload
+bun dev
 
-# See yesterday's activity
-sp yesterday
+# Build standalone binary
+bun run build
 
-# Find tasks for a project
-sp task list --project "Work"
-
-# Search for a specific task
-sp task search "report"
-
-# View task details
-sp task view <task-id>
-
-# List all projects
-sp project list
-
-# Check counters
-sp counter list
+# Run tests
+bun test
 ```
 
-## AI/LLM Agent Note
+## License
 
-- Use `--json` or `--ndjson` flags for parseable output
-- Default JSON shows essential fields; use `--full` for all fields
-- This is a read-only CLI - no mutations are supported
+MIT

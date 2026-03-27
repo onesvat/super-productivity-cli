@@ -1,0 +1,8 @@
+.github/
+.git/
+node_modules/
+*.lock
+bun.lock
+tsconfig.json
+CLAUDE.md
+sp

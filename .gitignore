@@ -1,26 +1,24 @@
-# Python
-__pycache__/
-*.pyc
+# Dependencies
+node_modules/
 
-# Local data / Backups
-data/sync-data.extracted.json
-data/sync-data.json
-*.bak
+# Build output
+sp
+dist/
 
-# Virtual Env
-.venv/
-venv/
-env/
-.env
+# Config (user-specific)
+config.json
+
+# Local data
+data/
 
 # OS Files
 .DS_Store
 Thumbs.db
 
-# Build artifacts
-build/
-dist/
-*.egg-info/
-
-# Project Tracking
-project-tracking/
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+# Binary
+sp

@@ -1,44 +1,30 @@
-name: Publish to PyPI
+name: Publish to npm
 
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
-  build:
-    name: Build distribution 📦
+  publish:
+    name: Publish to npm 🚀
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-      - name: Install pypa/build
-        run: python3 -m pip install build --user
-      - name: Build a binary wheel and a source tarball
-        run: python3 -m build
-      - name: Store the distribution packages
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-package-distributions
-          path: dist/
 
-  publish-to-pypi:
-    name: Publish to PyPI 🚀
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/super-productivity-cli
-    permissions:
-      id-token: write  # IMPORTANT: mandatory for Trusted Publishing
-    steps:
-      - name: Download all the dists
-        uses: actions/download-artifact@v4
-        with:
-          name: python-package-distributions
-          path: dist/
-      - name: Publish distribution 📦 to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: oven-sh/setup-bun@v1
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: Publish to npm
+        run: bun publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
