@@ -8,10 +8,34 @@ A command-line interface for [Super Productivity](https://github.com/super-produ
 
 This CLI supports two backend modes:
 
-| Mode | Access | Backend |
-|------|--------|---------|
-| **API** (default) | Read-Write | Local REST API at `http://127.0.0.1:3876` |
-| **Dropbox** | Read-Only | Dropbox sync file |
+| Mode | Access | Requirements |
+|------|--------|--------------|
+| **Local REST API** | Read-Write | Super Productivity desktop app must be open |
+| **Dropbox Sync** | Read-Only | Dropbox sync enabled in app (no app required) |
+
+### Which Mode Should I Use?
+
+| Feature | Local REST API | Dropbox Sync |
+|---------|:--------------:|:------------:|
+| **View tasks** | ✅ | ✅ |
+| **Search tasks** | ✅ | ✅ |
+| **View projects** | ✅ | ✅ |
+| **View tags** | ✅ | ✅ |
+| **View status** | ✅ | ✅ |
+| **Create tasks** | ✅ | ❌ |
+| **Update tasks** | ✅ | ❌ |
+| **Delete tasks** | ✅ | ❌ |
+| **Start/stop task** | ✅ | ❌ |
+| **Archive/restore** | ✅ | ❌ |
+| **Assign tags** | ✅ | ❌ |
+| **Move to project** | ✅ | ❌ |
+| **Set time estimate** | ✅ | ❌ |
+| **View counters** | ❌ | ✅ |
+| **View notes** | ❌ | ✅ |
+| **App must be open** | ✅ Yes | ❌ No |
+| **Works offline** | ❌ No | ✅ Yes |
+
+**Recommendation**: Use **Local REST API** for full functionality. Use **Dropbox Sync** when the app is closed or for read-only access.
 
 **Auto-detection**: The CLI automatically detects if the Local REST API is available. If the API is unreachable, it falls back to Dropbox mode.
 
@@ -42,9 +66,13 @@ sp --help
 
 ## Quick Start
 
-### With Local REST API (Recommended)
+### Option 1: Local REST API (Recommended - Full Features)
 
-Enable the Local REST API in Super Productivity: **Settings → Misc → Enable local REST API**
+> **Requirements**: Super Productivity desktop app must be running with Local REST API enabled.
+
+1. Open Super Productivity desktop app
+2. Enable API: **Settings → Misc → Enable local REST API**
+3. The API runs at `http://127.0.0.1:3876`
 
 ```bash
 # List tasks (auto-detects API)
@@ -69,7 +97,9 @@ sp task update <task-id> -p <project-id>
 sp task archive <task-id>
 ```
 
-### With Dropbox (Read-Only)
+### Option 2: Dropbox Sync (Read-Only)
+
+> **Requirements**: Dropbox sync enabled in Super Productivity. Works without the app open.
 
 ```bash
 # Login to Dropbox (one-time setup)
@@ -80,6 +110,12 @@ sp encrypt-key "your-password"
 
 # Force Dropbox mode
 sp --dropbox task list
+
+# View counters/habits (only available in Dropbox mode)
+sp --dropbox counter list
+
+# View notes (only available in Dropbox mode)
+sp --dropbox note list
 ```
 
 ## Backend Selection
