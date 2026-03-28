@@ -42,9 +42,9 @@ sp project list       # List projects
 ## Development
 
 ```bash
-bun run src/index.ts --help   # Run CLI
-bun dev                       # Run with auto-reload
-bun run build                 # Build standalone binary
+npm run build         # Build with tsc
+npm run start         # Run compiled CLI
+npm run dev           # Run with --watch
 ```
 
 ## Dependencies
@@ -55,36 +55,10 @@ bun run build                 # Build standalone binary
 
 ---
 
-# Bun Configuration
+# Runtime Configuration
 
-Default to using Bun instead of Node.js.
+This project uses Node.js for execution, Bun for package management.
 
-- Use `bun <file>` instead of `node <file>` or `ts-node <file>`
-- Use `bun test` instead of `jest` or `vitest`
-- Use `bun build <file.html|file.ts|file.css>` instead of `webpack` or `esbuild`
-- Use `bun install` instead of `npm install` or `yarn install` or `pnpm install`
-- Use `bun run <script>` instead of `npm run <script>` or `yarn run <script>` or `pnpm run <script>`
-- Use `bunx <package> <command>` instead of `npx <package> <command>`
-- Bun automatically loads .env, so don't use dotenv.
-
-## APIs
-
-- `Bun.serve()` supports WebSockets, HTTPS, and routes. Don't use `express`.
-- `bun:sqlite` for SQLite. Don't use `better-sqlite3`.
-- `Bun.redis` for Redis. Don't use `ioredis`.
-- `Bun.sql` for Postgres. Don't use `pg` or `postgres.js`.
-- `WebSocket` is built-in. Don't use `ws`.
-- Prefer `Bun.file` over `node:fs`'s readFile/writeFile
-- Bun.$`ls` instead of execa.
-
-## Testing
-
-Use `bun test` to run tests.
-
-```ts#index.test.ts
-import { test, expect } from "bun:test";
-
-test("hello world", () => {
-  expect(1).toBe(1);
-});
-```
+- Use `bun install` for installing packages
+- Use `npm run <script>` for running scripts (build, start, dev)
+- Build output goes to `dist/` directory

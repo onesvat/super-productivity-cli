@@ -15,6 +15,8 @@ export interface SyncData {
     project: { ids: string[]; entities: Record<string, unknown> };
     tag: { ids: string[]; entities: Record<string, unknown> };
     simpleCounter?: { ids: string[]; entities: Record<string, unknown> };
+    note?: { ids: string[]; entities: Record<string, unknown> };
+    planner?: { days?: Record<string, string[]> };
     [key: string]: unknown;
   };
   archiveYoung?: Record<string, unknown>;

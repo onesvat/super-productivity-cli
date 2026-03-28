@@ -1,0 +1,158 @@
+{
+  "version": 1,
+  "syncVersion": 1,
+  "schemaVersion": 1,
+  "vectorClock": { "client-a": 5 },
+  "lastModified": 1733000000000,
+  "clientId": "test-client",
+  "state": {
+    "task": {
+      "ids": ["task-1", "task-2", "task-3", "task-1-sub"],
+      "entities": {
+        "task-1": {
+          "id": "task-1",
+          "title": "Active Task 1",
+          "projectId": "INBOX_PROJECT",
+          "subTaskIds": ["task-1-sub"],
+          "timeSpentOnDay": {},
+          "timeSpent": 0,
+          "timeEstimate": 3600000,
+          "isDone": false,
+          "tagIds": [],
+          "created": 1733000000000
+        },
+        "task-1-sub": {
+          "id": "task-1-sub",
+          "title": "Subtask of Task 1",
+          "parentId": "task-1",
+          "projectId": "INBOX_PROJECT",
+          "subTaskIds": [],
+          "timeSpentOnDay": {},
+          "timeSpent": 0,
+          "isDone": false,
+          "tagIds": [],
+          "created": 1733000000001
+        },
+        "task-2": {
+          "id": "task-2",
+          "title": "Done Task",
+          "projectId": "project-1",
+          "subTaskIds": [],
+          "timeSpentOnDay": {},
+          "timeSpent": 7200000,
+          "timeEstimate": 3600000,
+          "isDone": true,
+          "tagIds": [],
+          "dueDay": "2024-12-01",
+          "created": 1733000000002
+        },
+        "task-3": {
+          "id": "task-3",
+          "title": "Today Task",
+          "projectId": "INBOX_PROJECT",
+          "subTaskIds": [],
+          "timeSpentOnDay": { "2024-12-01": 1800000 },
+          "timeSpent": 1800000,
+          "timeEstimate": 1800000,
+          "isDone": false,
+          "tagIds": ["TODAY"],
+          "created": 1733000000003
+        }
+      }
+    },
+    "project": {
+      "ids": ["INBOX_PROJECT", "project-1"],
+      "entities": {
+        "INBOX_PROJECT": {
+          "id": "INBOX_PROJECT",
+          "title": "Inbox",
+          "taskIds": ["task-1", "task-3"],
+          "backlogTaskIds": [],
+          "isHiddenFromMenu": false,
+          "isArchived": false,
+          "icon": "inbox"
+        },
+        "project-1": {
+          "id": "project-1",
+          "title": "Work Project",
+          "taskIds": ["task-2"],
+          "backlogTaskIds": [],
+          "isHiddenFromMenu": false,
+          "isArchived": false,
+          "icon": "work"
+        }
+      }
+    },
+    "tag": {
+      "ids": ["TODAY", "urgent"],
+      "entities": {
+        "TODAY": {
+          "id": "TODAY",
+          "title": "Today",
+          "taskIds": ["task-3"],
+          "icon": "wb_sunny",
+          "created": 1733000000000
+        },
+        "urgent": {
+          "id": "urgent",
+          "title": "Urgent",
+          "taskIds": ["task-1"],
+          "icon": "emergency",
+          "created": 1733000000001
+        }
+      }
+    },
+    "simpleCounter": {
+      "ids": ["counter-reading", "counter-exercise"],
+      "entities": {
+        "counter-reading": {
+          "id": "counter-reading",
+          "title": "Reading",
+          "type": "ClickCounter",
+          "isEnabled": true,
+          "isOn": true,
+          "countOnDay": { "2024-12-01": 10 },
+          "icon": "book",
+          "created": 1733000000000
+        },
+        "counter-exercise": {
+          "id": "counter-exercise",
+          "title": "Exercise",
+          "type": "ClickCounter",
+          "isEnabled": true,
+          "isOn": false,
+          "countOnDay": {},
+          "icon": "fitness_center",
+          "created": 1733000000001
+        }
+      }
+    },
+    "note": {
+      "ids": ["note-meeting", "note-project"],
+      "entities": {
+        "note-meeting": {
+          "id": "note-meeting",
+          "content": "Meeting notes from yesterday - discussed roadmap and priorities for Q1.",
+          "projectId": null,
+          "isPinnedToToday": false,
+          "created": 1733000000000,
+          "modified": 1733000000000
+        },
+        "note-project": {
+          "id": "note-project",
+          "content": "Project roadmap draft - Phase 1: MVP, Phase 2: Beta testing, Phase 3: Launch.",
+          "projectId": "project-1",
+          "isPinnedToToday": true,
+          "created": 1733000000001,
+          "modified": 1733000000001
+        }
+      }
+    },
+    "planner": {
+      "days": {
+        "2024-12-01": ["task-3"],
+        "2024-12-02": []
+      }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "syncVersion": 1,
+  "schemaVersion": 1,
+  "vectorClock": {},
+  "lastModified": 1733000000000,
+  "clientId": "test-client",
+  "state": {
+    "task": {
+      "ids": [],
+      "entities": {}
+    },
+    "project": {
+      "ids": [],
+      "entities": {}
+    },
+    "tag": {
+      "ids": [],
+      "entities": {}
+    },
+    "simpleCounter": {
+      "ids": [],
+      "entities": {}
+    },
+    "note": {
+      "ids": [],
+      "entities": {}
+    },
+    "planner": {
+      "days": {}
+    }
+  }
+}

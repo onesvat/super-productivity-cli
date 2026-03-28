@@ -19,7 +19,17 @@ import {
   fmtTime,
   todayStr,
   serializeTask,
+  getCounters,
+  getCounterIds,
+  getTags,
+  getTagIds,
+  getNotes,
+  getNoteIds,
+  serializeCounter,
+  serializeTag,
+  serializeNote,
 } from "../lib/data-helpers.js";
+import { printMany, printOne, hasFormatOption, OutputOptions } from "../lib/output.js";
 
 const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
@@ -232,7 +242,9 @@ taskCommand
   .option("-t, --today", "Only today tasks (tagged or due today)")
   .option("--past-due", "Only past due tasks")
   .option("--json", "Output as JSON")
-  .action(async (options: { project?: string; done?: boolean; today?: boolean; pastDue?: boolean; json?: boolean }) => {
+  .option("--ndjson", "Output as newline-delimited JSON")
+  .option("--full", "Output full entity data")
+  .action(async (options: { project?: string; done?: boolean; today?: boolean; pastDue?: boolean; json?: boolean; ndjson?: boolean; full?: boolean }) => {
     try {
       const data = await fetchAndProcessData();
       const tasks = getTasks(data);
@@ -282,8 +294,14 @@ taskCommand
         rows.push(task);
       }
 
-      if (options.json) {
-        console.log(JSON.stringify(rows.map((t) => serializeTask(data, t)), null, 2));
+      const outputOpts: OutputOptions = { json: options.json, ndjson: options.ndjson, full: options.full };
+      
+      if (hasFormatOption(outputOpts)) {
+        const serializer = (t: Record<string, unknown>, full: boolean) => {
+          if (full) return t;
+          return serializeTask(data, t);
+        };
+        printMany(rows, outputOpts, serializer);
         return;
       }
 
@@ -333,7 +351,9 @@ taskCommand
   .command("search <query>")
   .description("Search tasks by title")
   .option("--json", "Output as JSON")
-  .action(async (query: string, options: { json?: boolean }) => {
+  .option("--ndjson", "Output as newline-delimited JSON")
+  .option("--full", "Output full entity data")
+  .action(async (query: string, options: { json?: boolean; ndjson?: boolean; full?: boolean }) => {
     try {
       const data = await fetchAndProcessData();
       const tasks = getTasks(data);
@@ -347,8 +367,14 @@ taskCommand
         }
       }
 
-      if (options.json) {
-        console.log(JSON.stringify(rows.map((t) => serializeTask(data, t)), null, 2));
+      const outputOpts: OutputOptions = { json: options.json, ndjson: options.ndjson, full: options.full };
+      
+      if (hasFormatOption(outputOpts)) {
+        const serializer = (t: Record<string, unknown>, full: boolean) => {
+          if (full) return t;
+          return serializeTask(data, t);
+        };
+        printMany(rows, outputOpts, serializer);
         return;
       }
 
@@ -374,13 +400,26 @@ projectCommand
   .command("list")
   .description("List projects")
   .option("--json", "Output as JSON")
-  .action(async (options: { json?: boolean }) => {
+  .option("--ndjson", "Output as newline-delimited JSON")
+  .option("--full", "Output full entity data")
+  .action(async (options: { json?: boolean; ndjson?: boolean; full?: boolean }) => {
     try {
       const data = await fetchAndProcessData();
       const projects = getProjects(data) as Record<string, Record<string, unknown>>;
+      const rows = Object.values(projects);
 
-      if (options.json) {
-        console.log(JSON.stringify(Object.values(projects), null, 2));
+      const outputOpts: OutputOptions = { json: options.json, ndjson: options.ndjson, full: options.full };
+      
+      if (hasFormatOption(outputOpts)) {
+        const serializer = (p: Record<string, unknown>, full: boolean) => {
+          if (full) return p;
+          return {
+            id: p.id as string,
+            title: p.title as string,
+            taskCount: (p.taskIds as string[])?.length || 0,
+          };
+        };
+        printMany(rows, outputOpts, serializer);
         return;
       }
 
@@ -389,6 +428,311 @@ projectCommand
         const taskCount = (proj.taskIds as string[])?.length || 0;
         console.log(`  - ${bold(proj.title as string)} ${dim(`(${taskCount} tasks)`)}`);
       }
+      console.log();
+    } catch (e) {
+      console.error(red(`Error: ${e instanceof Error ? e.message : e}`));
+      process.exit(1);
+    }
+  });
+
+export const counterCommand = new Command("counter")
+  .description("Counter commands");
+
+counterCommand
+  .command("list")
+  .description("List counters")
+  .option("--json", "Output as JSON")
+  .option("--ndjson", "Output as newline-delimited JSON")
+  .option("--full", "Output full entity data")
+  .action(async (options: { json?: boolean; ndjson?: boolean; full?: boolean }) => {
+    try {
+      const data = await fetchAndProcessData();
+      const counters = getCounters(data) as Record<string, Record<string, unknown>>;
+      const counterIds = getCounterIds(data);
+      const today = todayStr();
+
+      const rows: Record<string, unknown>[] = [];
+      for (const cid of counterIds) {
+        const counter = counters[cid];
+        if (counter) rows.push(counter);
+      }
+
+      const outputOpts: OutputOptions = { json: options.json, ndjson: options.ndjson, full: options.full };
+      
+      if (hasFormatOption(outputOpts)) {
+        printMany(rows, outputOpts, serializeCounter);
+        return;
+      }
+
+      if (!rows.length) {
+        console.log(dim("No counters found."));
+        return;
+      }
+
+      console.log();
+      for (const counter of rows) {
+        const countOnDay = counter.countOnDay as Record<string, number> | undefined;
+        const todayValue = countOnDay?.[today] || 0;
+        const isOn = counter.isOn as boolean;
+        const statusIcon = isOn ? green("🟢") : "⚪";
+        console.log(`  🔢 ${counter.title} ${dim(`(${counter.id})`)} ${statusIcon} today=${cyan(String(todayValue))}`);
+      }
+      console.log();
+    } catch (e) {
+      console.error(red(`Error: ${e instanceof Error ? e.message : e}`));
+      process.exit(1);
+    }
+  });
+
+counterCommand
+  .command("show <id>")
+  .description("Show counter details")
+  .option("--json", "Output as JSON")
+  .option("--full", "Output full entity data")
+  .action(async (id: string, options: { json?: boolean; full?: boolean }) => {
+    try {
+      const data = await fetchAndProcessData();
+      const counters = getCounters(data) as Record<string, Record<string, unknown>>;
+      const counter = counters[id];
+
+      if (!counter) {
+        console.error(red(`Counter not found: ${id}`));
+        process.exit(1);
+      }
+
+      const outputOpts: OutputOptions = { json: options.json, full: options.full };
+      
+      if (hasFormatOption(outputOpts)) {
+        printOne(counter, outputOpts, serializeCounter);
+        return;
+      }
+
+      const today = todayStr();
+      const countOnDay = counter.countOnDay as Record<string, number> | undefined;
+      const todayValue = countOnDay?.[today] || 0;
+      const isOn = counter.isOn as boolean;
+
+      console.log();
+      console.log(`  🔢 ${bold(counter.title as string)}`);
+      console.log(`  id: ${counter.id}`);
+      console.log(`  type: ${counter.type || "CLICK"}`);
+      console.log(`  isOn: ${isOn ? green("yes") : "no"}`);
+      console.log(`  today: ${cyan(String(todayValue))}`);
+      console.log();
+    } catch (e) {
+      console.error(red(`Error: ${e instanceof Error ? e.message : e}`));
+      process.exit(1);
+    }
+  });
+
+export const tagCommand = new Command("tag")
+  .description("Tag commands");
+
+tagCommand
+  .command("list")
+  .description("List tags")
+  .option("--json", "Output as JSON")
+  .option("--ndjson", "Output as newline-delimited JSON")
+  .option("--full", "Output full entity data")
+  .action(async (options: { json?: boolean; ndjson?: boolean; full?: boolean }) => {
+    try {
+      const data = await fetchAndProcessData();
+      const tags = getTags(data) as Record<string, Record<string, unknown>>;
+      const tagIds = getTagIds(data);
+
+      const rows: Record<string, unknown>[] = [];
+      for (const tid of tagIds) {
+        const tag = tags[tid];
+        if (tag) rows.push(tag);
+      }
+
+      const outputOpts: OutputOptions = { json: options.json, ndjson: options.ndjson, full: options.full };
+      
+      if (hasFormatOption(outputOpts)) {
+        printMany(rows, outputOpts, serializeTag);
+        return;
+      }
+
+      if (!rows.length) {
+        console.log(dim("No tags found."));
+        return;
+      }
+
+      console.log();
+      for (const tag of rows) {
+        const taskIds = tag.taskIds as string[] | undefined;
+        const taskCount = taskIds?.length || 0;
+        console.log(`  🏷️ ${tag.title} ${dim(`(${tag.id})`)} • ${cyan(`${taskCount} tasks`)}`);
+      }
+      console.log();
+    } catch (e) {
+      console.error(red(`Error: ${e instanceof Error ? e.message : e}`));
+      process.exit(1);
+    }
+  });
+
+tagCommand
+  .command("show <id>")
+  .description("Show tag details")
+  .option("--json", "Output as JSON")
+  .option("--full", "Output full entity data")
+  .action(async (id: string, options: { json?: boolean; full?: boolean }) => {
+    try {
+      const data = await fetchAndProcessData();
+      const tags = getTags(data) as Record<string, Record<string, unknown>>;
+      const tag = tags[id];
+
+      if (!tag) {
+        console.error(red(`Tag not found: ${id}`));
+        process.exit(1);
+      }
+
+      const outputOpts: OutputOptions = { json: options.json, full: options.full };
+      
+      if (hasFormatOption(outputOpts)) {
+        printOne(tag, outputOpts, serializeTag);
+        return;
+      }
+
+      const taskIds = tag.taskIds as string[] | undefined;
+      const taskCount = taskIds?.length || 0;
+
+      console.log();
+      console.log(`  🏷️ ${bold(tag.title as string)}`);
+      console.log(`  id: ${tag.id}`);
+      console.log(`  tasks: ${cyan(String(taskCount))}`);
+      console.log();
+    } catch (e) {
+      console.error(red(`Error: ${e instanceof Error ? e.message : e}`));
+      process.exit(1);
+    }
+  });
+
+export const noteCommand = new Command("note")
+  .description("Note commands");
+
+noteCommand
+  .command("list")
+  .description("List notes")
+  .option("--json", "Output as JSON")
+  .option("--ndjson", "Output as newline-delimited JSON")
+  .option("--full", "Output full entity data")
+  .action(async (options: { json?: boolean; ndjson?: boolean; full?: boolean }) => {
+    try {
+      const data = await fetchAndProcessData();
+      const notes = getNotes(data) as Record<string, Record<string, unknown>>;
+      const noteIds = getNoteIds(data);
+
+      const rows: Record<string, unknown>[] = [];
+      for (const nid of noteIds) {
+        const note = notes[nid];
+        if (note) rows.push(note);
+      }
+
+      const outputOpts: OutputOptions = { json: options.json, ndjson: options.ndjson, full: options.full };
+      
+      if (hasFormatOption(outputOpts)) {
+        printMany(rows, outputOpts, serializeNote);
+        return;
+      }
+
+      if (!rows.length) {
+        console.log(dim("No notes found."));
+        return;
+      }
+
+      console.log();
+      for (const note of rows) {
+        const content = note.content as string | undefined;
+        const preview = content?.slice(0, 80) || "";
+        console.log(`  🗒️ ${note.id} • ${dim(preview)}...`);
+      }
+      console.log();
+    } catch (e) {
+      console.error(red(`Error: ${e instanceof Error ? e.message : e}`));
+      process.exit(1);
+    }
+  });
+
+noteCommand
+  .command("show <id>")
+  .description("Show note details")
+  .option("--json", "Output as JSON")
+  .option("--full", "Output full entity data")
+  .action(async (id: string, options: { json?: boolean; full?: boolean }) => {
+    try {
+      const data = await fetchAndProcessData();
+      const notes = getNotes(data) as Record<string, Record<string, unknown>>;
+      const note = notes[id];
+
+      if (!note) {
+        console.error(red(`Note not found: ${id}`));
+        process.exit(1);
+      }
+
+      const outputOpts: OutputOptions = { json: options.json, full: options.full };
+      
+      if (hasFormatOption(outputOpts)) {
+        printOne(note, outputOpts, serializeNote);
+        return;
+      }
+
+      const content = note.content as string | undefined;
+      const preview = content?.slice(0, 80) || "";
+      const pinnedToday = note.pinnedToday as boolean;
+
+      console.log();
+      console.log(`  🗒️ ${bold(note.id as string)}`);
+      console.log(`  project: ${note.projectId || dim("none")}`);
+      console.log(`  pinnedToday: ${pinnedToday ? green("yes") : "no"}`);
+      console.log(`  preview: ${dim(preview)}...`);
+      console.log();
+    } catch (e) {
+      console.error(red(`Error: ${e instanceof Error ? e.message : e}`));
+      process.exit(1);
+    }
+  });
+
+export const stateCommand = new Command("state")
+  .description("State commands");
+
+stateCommand
+  .command("summary")
+  .description("Show state summary")
+  .option("--json", "Output as JSON")
+  .action(async (options: { json?: boolean }) => {
+    try {
+      const data = await fetchAndProcessData();
+
+      const taskCount = getTaskIds(data).length;
+      const projectCount = Object.keys(getProjects(data)).length;
+      const counterCount = getCounterIds(data).length;
+      const tagCount = getTagIds(data).length;
+      const noteCount = getNoteIds(data).length;
+      const plannerDays = data.state?.planner?.days ? Object.keys(data.state.planner.days).length : 0;
+
+      const summary = {
+        tasks: taskCount,
+        projects: projectCount,
+        counters: counterCount,
+        tags: tagCount,
+        notes: noteCount,
+        plannerDays,
+      };
+
+      if (options.json) {
+        console.log(JSON.stringify(summary, null, 2));
+        return;
+      }
+
+      console.log();
+      console.log(bold("📊 State Summary"));
+      console.log(`  tasks: ${cyan(String(taskCount))}`);
+      console.log(`  projects: ${cyan(String(projectCount))}`);
+      console.log(`  counters: ${cyan(String(counterCount))}`);
+      console.log(`  tags: ${cyan(String(tagCount))}`);
+      console.log(`  notes: ${cyan(String(noteCount))}`);
+      console.log(`  plannerDays: ${cyan(String(plannerDays))}`);
       console.log();
     } catch (e) {
       console.error(red(`Error: ${e instanceof Error ? e.message : e}`));

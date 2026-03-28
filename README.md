@@ -15,7 +15,7 @@ This CLI provides read-only access to your Super Productivity data stored in Dro
 - **Native Dropbox API** - Direct OAuth authentication, no rclone or external tools needed
 - **Encryption Support** - Decrypt sync files encrypted with AES-256-GCM + Argon2id
 - **Compression Support** - Handle gzip-compressed sync files
-- **JSON Output** - All commands support `--json` for scripting and automation
+- **JSON Output** - All commands support `--json`, `--ndjson`, and `--full` for scripting
 
 ## Requirements
 
@@ -59,6 +59,18 @@ sp task search "report"
 
 # List projects
 sp project list
+
+# View counters/habits
+sp counter list
+
+# View tags
+sp tag list
+
+# View notes
+sp note list
+
+# View state summary
+sp state summary
 ```
 
 ## Commands
@@ -81,21 +93,103 @@ sp project list
 | `sp task list --past-due` | Overdue incomplete tasks |
 | `sp task list --done` | Show completed tasks |
 | `sp task list --project "Work"` | Filter by project |
-| `sp task search <query>` | Search tasks by title |
+| `sp task search <query>` | Search tasks by title (supports `*` wildcard) |
 | `sp task list --json` | Output as JSON |
+| `sp task list --ndjson` | Output as newline-delimited JSON |
+| `sp task list --full` | Include all task fields |
 
 ### Projects
 
 | Command | Description |
 |---------|-------------|
 | `sp project list` | List all projects with task counts |
+| `sp project list --json` | Output as JSON |
+
+### Counters (Habits)
+
+| Command | Description |
+|---------|-------------|
+| `sp counter list` | List all counters with today's values |
+| `sp counter show <id>` | Show counter details |
+| `sp counter list --json` | Output as JSON |
+| `sp counter list --full` | Include count history |
+
+### Tags
+
+| Command | Description |
+|---------|-------------|
+| `sp tag list` | List all tags with task counts |
+| `sp tag show <id>` | Show tag details |
+| `sp tag list --json` | Output as JSON |
+
+### Notes
+
+| Command | Description |
+|---------|-------------|
+| `sp note list` | List all notes with preview |
+| `sp note show <id>` | Show note details |
+| `sp note list --json` | Output as JSON |
+| `sp note list --full` | Include full content |
 
 ### Status
 
 | Command | Description |
 |---------|-------------|
 | `sp status` | Today's summary with time spent by project |
-| `sp status --json` | Today's status as JSON (for scripting) |
+| `sp status --json` | Today's status as JSON |
+
+### State
+
+| Command | Description |
+|---------|-------------|
+| `sp state summary` | Show entity counts (tasks, projects, counters, etc.) |
+| `sp state summary --json` | Output as JSON |
+
+## Output Formats
+
+All list commands support multiple output formats:
+
+### `--json` (Pretty JSON)
+
+```bash
+sp task list --json
+```
+
+```json
+[
+  { "id": "task-1", "title": "My Task", "projectId": "INBOX_PROJECT" }
+]
+```
+
+### `--ndjson` (Newline-delimited JSON)
+
+Useful for streaming and processing line-by-line:
+
+```bash
+sp counter list --ndjson
+```
+
+```json
+{"id":"counter-1","title":"Reading","todayValue":5}
+{"id":"counter-2","title":"Exercise","todayValue":0}
+```
+
+### `--full` (Complete entity data)
+
+Include all fields (timestamps, history, etc.):
+
+```bash
+sp counter show counter-1 --json --full
+```
+
+```json
+{
+  "id": "counter-1",
+  "title": "Reading",
+  "countOnDay": { "2024-12-01": 5, "2024-11-30": 3 },
+  "created": 1733000000000
+}
+```
 
 ## Encryption
 
@@ -110,9 +204,7 @@ The CLI uses the same encryption as the main app:
 - **Key Derivation**: Argon2id (64MB memory, 3 iterations)
 - **Format**: Same prefix-based format as Super Productivity
 
-## JSON Output
-
-All list commands support `--json` for use in scripts:
+## JSON Output Examples
 
 ```bash
 # Get today's tasks as JSON
@@ -121,8 +213,13 @@ sp task list --today --json
 # Parse with jq
 sp status --json | jq '.tasks.plannedDay'
 
-# Use in scripts
-sp task search "urgent" --json | node process-tasks.js
+# Stream counters as NDJSON for processing
+sp counter list --ndjson | while read line; do
+  echo "Processing: $(echo $line | jq -r '.title')"
+done
+
+# Get full task data for export
+sp task list --json --full > tasks-backup.json
 ```
 
 ## Configuration
@@ -137,6 +234,25 @@ Config stored at `~/.config/super-productivity-cli/config.json`:
     "encryptKey": "optional-password"
   }
 }
+```
+
+## Development
+
+```bash
+# Install dependencies
+bun install
+
+# Build
+npm run build
+
+# Run locally
+npm run start -- --help
+
+# Run tests
+npm test
+
+# Watch mode
+npm run test:watch
 ```
 
 ## Related Projects

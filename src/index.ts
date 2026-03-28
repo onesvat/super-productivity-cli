@@ -7,6 +7,10 @@ import {
   statusCommand,
   taskCommand,
   projectCommand,
+  counterCommand,
+  tagCommand,
+  noteCommand,
+  stateCommand,
 } from "./commands/index.js";
 import { getDropboxConfig } from "./lib/config.js";
 
@@ -25,6 +29,10 @@ program.addCommand(encryptKeyCommand);
 program.addCommand(statusCommand);
 program.addCommand(taskCommand);
 program.addCommand(projectCommand);
+program.addCommand(counterCommand);
+program.addCommand(tagCommand);
+program.addCommand(noteCommand);
+program.addCommand(stateCommand);
 
 const run = async () => {
   const args = process.argv.slice(2);
