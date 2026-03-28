@@ -269,7 +269,7 @@ Config stored at `~/.config/super-productivity-cli/config.json`:
 
 ```bash
 # Install dependencies
-bun install
+npm install
 
 # Build
 npm run build

@@ -90,9 +90,10 @@ sp tag list           # List tags
 ## Development
 
 ```bash
-npm run build         # Build with tsc
-npm run start         # Run compiled CLI
-npm run dev           # Run with --watch
+npm install            # Install dependencies
+npm run build          # Build with tsc
+npm run start          # Run compiled CLI
+npm run dev            # Run with --watch
 ```
 
 ## Dependencies
@@ -105,8 +106,8 @@ npm run dev           # Run with --watch
 
 # Runtime Configuration
 
-This project uses Node.js for execution, Bun for package management.
+This project uses Node.js with npm for package management.
 
-- Use `bun install` for installing packages
+- Use `npm install` for installing packages
 - Use `npm run <script>` for running scripts (build, start, dev)
 - Build output goes to `dist/` directory
