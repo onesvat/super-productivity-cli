@@ -1,26 +1,33 @@
 # Super Productivity CLI
 
-A command-line interface for [Super Productivity](https://github.com/super-productivity/super-productivity) to view your tasks from the terminal.
+A command-line interface for [Super Productivity](https://github.com/super-productivity/super-productivity) with full read-write support via Local REST API.
 
 > **Note:** This is an unofficial CLI and is not affiliated with the Super Productivity project.
 
 ## Overview
 
-This CLI provides read-only access to your Super Productivity data stored in Dropbox. It allows you to quickly check your tasks, projects, and today's status without opening the main application.
+This CLI supports two backend modes:
 
-**Why read-only?** Super Productivity uses a complex internal sync mechanism with operation logs, vector clocks, and conflict resolution. Supporting write operations would require replicating this entire sync infrastructure, which is beyond the scope of this CLI. For modifying tasks, please use the main [Super Productivity app](https://github.com/super-productivity/super-productivity).
+| Mode | Access | Backend |
+|------|--------|---------|
+| **API** (default) | Read-Write | Local REST API at `http://127.0.0.1:3876` |
+| **Dropbox** | Read-Only | Dropbox sync file |
+
+**Auto-detection**: The CLI automatically detects if the Local REST API is available. If the API is unreachable, it falls back to Dropbox mode.
 
 ## Features
 
-- **Native Dropbox API** - Direct OAuth authentication, no rclone or external tools needed
-- **Encryption Support** - Decrypt sync files encrypted with AES-256-GCM + Argon2id
-- **Compression Support** - Handle gzip-compressed sync files
-- **JSON Output** - All commands support `--json`, `--ndjson`, and `--full` for scripting
+- **Dual Backend** - API (read-write) and Dropbox (read-only)
+- **Auto-detection** - Falls back to Dropbox if API unavailable
+- **Native Dropbox API** - Direct OAuth authentication, no rclone needed
+- **Encryption Support** - Decrypt sync files with AES-256-GCM + Argon2id
+- **JSON Output** - All commands support `--json`, `--ndjson`, and `--full`
 
 ## Requirements
 
 - Node.js 18+
-- Super Productivity with Dropbox sync enabled
+- Super Productivity desktop app (for Local REST API)
+- OR Dropbox sync enabled (for read-only mode)
 
 ## Installation
 
@@ -35,47 +42,69 @@ sp --help
 
 ## Quick Start
 
+### With Local REST API (Recommended)
+
+Enable the Local REST API in Super Productivity: **Settings → Misc → Enable local REST API**
+
+```bash
+# List tasks (auto-detects API)
+sp task list
+
+# Create a new task
+sp task create "Buy groceries"
+
+# Start tracking time
+sp task start <task-id>
+
+# Stop tracking
+sp task stop
+
+# Update task
+sp task update <task-id> --title "New title" --tag TODAY
+
+# Move to project
+sp task update <task-id> -p <project-id>
+
+# Archive task
+sp task archive <task-id>
+```
+
+### With Dropbox (Read-Only)
+
 ```bash
 # Login to Dropbox (one-time setup)
 sp login
 
-# (Optional) Set encryption password if your sync is encrypted
+# Set encryption password if your sync is encrypted
 sp encrypt-key "your-password"
 
-# View today's summary
-sp status
+# Force Dropbox mode
+sp --dropbox task list
+```
 
-# List all tasks
+## Backend Selection
+
+```bash
+# Auto-detect (API if available, else Dropbox)
 sp task list
 
-# List tasks due today
-sp task list --today
+# Force API mode
+sp --api task list
 
-# List overdue tasks
-sp task list --past-due
+# Force API with custom URL
+sp --api http://localhost:8080 task list
 
-# Search tasks
-sp task search "report"
+# Force Dropbox mode
+sp --dropbox task list
 
-# List projects
-sp project list
-
-# View counters/habits
-sp counter list
-
-# View tags
-sp tag list
-
-# View notes
-sp note list
-
-# View state summary
-sp state summary
+# Set custom API URL via environment variable
+export SP_API_URL=http://localhost:8080
+sp task list
 ```
 
 ## Commands
 
-### Authentication
+### Authentication (Dropbox)
 
 | Command | Description |
 |---------|-------------|
@@ -84,7 +113,7 @@ sp state summary
 | `sp encrypt-key <password>` | Set encryption password |
 | `sp encrypt-key --clear` | Remove encryption password |
 
-### Tasks
+### Tasks (Read - Both Modes)
 
 | Command | Description |
 |---------|-------------|
@@ -92,134 +121,92 @@ sp state summary
 | `sp task list --today` | Tasks due today or tagged TODAY |
 | `sp task list --past-due` | Overdue incomplete tasks |
 | `sp task list --done` | Show completed tasks |
-| `sp task list --project "Work"` | Filter by project |
-| `sp task search <query>` | Search tasks by title (supports `*` wildcard) |
-| `sp task list --json` | Output as JSON |
-| `sp task list --ndjson` | Output as newline-delimited JSON |
-| `sp task list --full` | Include all task fields |
+| `sp task list --archived` | Show archived tasks |
+| `sp task list -p <id>` | Filter by project ID |
+| `sp task list -t <id>` | Filter by tag ID |
+| `sp task search <query>` | Search tasks by title |
+| `sp task show <id>` | Show task details |
 
-### Projects
+### Tasks (Write - API Mode Only)
 
 | Command | Description |
 |---------|-------------|
-| `sp project list` | List all projects with task counts |
-| `sp project list --json` | Output as JSON |
+| `sp task create <title>` | Create a new task |
+| `sp task update <id>` | Update task fields |
+| `sp task delete <id>` | Delete a task |
+| `sp task start <id>` | Start task (set as current) |
+| `sp task stop` | Stop current task |
+| `sp task archive <id>` | Archive a task |
+| `sp task restore <id>` | Restore archived task |
 
-### Counters (Habits)
+### Task Update Options
+
+```bash
+sp task update <id> -t "New title"           # Change title
+sp task update <id> -p <project-id>          # Move to project
+sp task update <id> -e 2h                    # Set estimate (2 hours)
+sp task update <id> --tag TODAY,Urgent       # Set tags (replaces existing)
+sp task update <id> --add-tag TODAY          # Add tag (keeps existing)
+sp task update <id> --remove-tag Urgent      # Remove tag
+sp task update <id> --done                   # Mark as done
+sp task update <id> --undone                 # Mark as not done
+```
+
+### Projects & Tags
+
+| Command | Description |
+|---------|-------------|
+| `sp project list` | List all projects |
+| `sp project list -q "Work"` | Search projects |
+| `sp tag list` | List all tags |
+| `sp tag show <id>` | Show tag details |
+
+### Status & State
+
+| Command | Description |
+|---------|-------------|
+| `sp status` | Today's summary with time spent |
+| `sp state summary` | Entity counts overview |
+
+### Counters & Notes (Dropbox Only)
 
 | Command | Description |
 |---------|-------------|
 | `sp counter list` | List all counters with today's values |
-| `sp counter show <id>` | Show counter details |
-| `sp counter list --json` | Output as JSON |
-| `sp counter list --full` | Include count history |
-
-### Tags
-
-| Command | Description |
-|---------|-------------|
-| `sp tag list` | List all tags with task counts |
-| `sp tag show <id>` | Show tag details |
-| `sp tag list --json` | Output as JSON |
-
-### Notes
-
-| Command | Description |
-|---------|-------------|
 | `sp note list` | List all notes with preview |
-| `sp note show <id>` | Show note details |
-| `sp note list --json` | Output as JSON |
-| `sp note list --full` | Include full content |
-
-### Status
-
-| Command | Description |
-|---------|-------------|
-| `sp status` | Today's summary with time spent by project |
-| `sp status --json` | Today's status as JSON |
-
-### State
-
-| Command | Description |
-|---------|-------------|
-| `sp state summary` | Show entity counts (tasks, projects, counters, etc.) |
-| `sp state summary --json` | Output as JSON |
 
 ## Output Formats
 
 All list commands support multiple output formats:
 
-### `--json` (Pretty JSON)
-
 ```bash
+# Pretty JSON
 sp task list --json
+
+# Newline-delimited JSON (for streaming/processing)
+sp task list --ndjson
+
+# Full entity data (all fields)
+sp task list --json --full
 ```
 
-```json
-[
-  { "id": "task-1", "title": "My Task", "projectId": "INBOX_PROJECT" }
-]
-```
-
-### `--ndjson` (Newline-delimited JSON)
-
-Useful for streaming and processing line-by-line:
+## Examples
 
 ```bash
-sp counter list --ndjson
-```
+# Create task with project and estimate
+sp task create "Review PR" -p Work -e 30m --tag Urgent
 
-```json
-{"id":"counter-1","title":"Reading","todayValue":5}
-{"id":"counter-2","title":"Exercise","todayValue":0}
-```
+# Start working on a task
+sp task start abc123
 
-### `--full` (Complete entity data)
+# Move task to another project and add tag
+sp task update abc123 -p "Side Project" --add-tag TODAY
 
-Include all fields (timestamps, history, etc.):
+# Get tasks as JSON for scripting
+sp task list --today --json | jq '.[] | .title'
 
-```bash
-sp counter show counter-1 --json --full
-```
-
-```json
-{
-  "id": "counter-1",
-  "title": "Reading",
-  "countOnDay": { "2024-12-01": 5, "2024-11-30": 3 },
-  "created": 1733000000000
-}
-```
-
-## Encryption
-
-If you've enabled encryption in Super Productivity's Dropbox sync settings, set your encryption password:
-
-```bash
-sp encrypt-key "your-encryption-password"
-```
-
-The CLI uses the same encryption as the main app:
-- **Algorithm**: AES-256-GCM
-- **Key Derivation**: Argon2id (64MB memory, 3 iterations)
-- **Format**: Same prefix-based format as Super Productivity
-
-## JSON Output Examples
-
-```bash
-# Get today's tasks as JSON
-sp task list --today --json
-
-# Parse with jq
-sp status --json | jq '.tasks.plannedDay'
-
-# Stream counters as NDJSON for processing
-sp counter list --ndjson | while read line; do
-  echo "Processing: $(echo $line | jq -r '.title')"
-done
-
-# Get full task data for export
-sp task list --json --full > tasks-backup.json
+# Check current status
+sp status
 ```
 
 ## Configuration
@@ -236,6 +223,12 @@ Config stored at `~/.config/super-productivity-cli/config.json`:
 }
 ```
 
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SP_API_URL` | Local REST API URL | `http://127.0.0.1:3876` |
+
 ## Development
 
 ```bash
@@ -248,16 +241,13 @@ npm run build
 # Run locally
 npm run start -- --help
 
-# Run tests
-npm test
-
-# Watch mode
-npm run test:watch
+# Link for global use
+npm link
 ```
 
 ## Related Projects
 
-- [Super Productivity](https://github.com/super-productivity/super-productivity) - The main application (Desktop, Mobile, Web)
+- [Super Productivity](https://github.com/super-productivity/super-productivity) - The main application
 
 ## License
 
