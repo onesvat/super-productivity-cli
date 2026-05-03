@@ -131,6 +131,17 @@ export class ApiBackend implements Backend {
         }
         return false;
       });
+      
+      const tags = await apiGet<ApiTag[]>(this.baseUrl, "/tags");
+      const todayTag = tags.find((t) => t.id === "TODAY");
+      if (todayTag?.taskIds) {
+        const orderMap = new Map(todayTag.taskIds.map((id, i) => [id, i]));
+        filtered.sort((a, b) => {
+          const aOrder = orderMap.get(a.id) ?? Infinity;
+          const bOrder = orderMap.get(b.id) ?? Infinity;
+          return aOrder - bOrder;
+        });
+      }
     }
     
     if (filters?.pastDue) {

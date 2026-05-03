@@ -286,7 +286,7 @@ export const statusCommand = new Command("status")
             console.log(`    ${pname.padEnd(25)} ${cyan(fmtDuration(ms))}  ${dim(bar)}`);
           });
       }
-      console.log();
+console.log();
     } catch (e) {
       console.error(red(`Error: ${e instanceof Error ? e.message : e}`));
       process.exit(1);
@@ -306,6 +306,74 @@ async function getProjectNameAsync(backend: Backend, projectId: string): Promise
 
 export const taskCommand = new Command("task")
   .description("Task commands");
+
+taskCommand
+  .command("today")
+  .description("List today's tasks in TODAY tag order")
+  .option("--json", "Output as JSON")
+  .option("--ndjson", "Output as newline-delimited JSON")
+  .option("--full", "Output full entity data")
+  .action(async (options: { json?: boolean; ndjson?: boolean; full?: boolean }) => {
+    try {
+      const backend = getBackend();
+      
+      const tasks = await backend.getTasks({ today: true, includeDone: true });
+      
+      const outputOpts: OutputOptions = { json: options.json, ndjson: options.ndjson, full: options.full };
+      
+      if (hasFormatOption(outputOpts)) {
+        printMany(tasks, outputOpts, (t, full) => full ? t : {
+          id: t.id,
+          title: t.title,
+          projectId: t.projectId,
+          isDone: t.isDone,
+          timeEstimate: t.timeEstimate,
+          timeSpent: t.timeSpent,
+          dueDay: t.dueDay,
+          dueWithTime: t.dueWithTime,
+          tagIds: t.tagIds,
+        });
+        return;
+      }
+      
+      if (!tasks.length) {
+        console.log(dim("No tasks for today."));
+        return;
+      }
+      
+      console.log();
+      const today = todayStr();
+      
+      for (const task of tasks) {
+        const doneIcon = task.isDone ? green("✓") : yellow("○");
+        const pname = await getProjectNameAsync(backend, task.projectId);
+        
+        const spentOnDay = task.timeSpentOnDay?.[today] || 0;
+        const totalSpent = task.timeSpent || 0;
+        const est = task.timeEstimate;
+        
+        const timeParts: string[] = [];
+        if (spentOnDay) timeParts.push(green(`today:${fmtDuration(spentOnDay)}`));
+        if (totalSpent) timeParts.push(dim(`total:${fmtDuration(totalSpent)}`));
+        if (est) timeParts.push(cyan(`est:${fmtDuration(est)}`));
+        const timeStr = timeParts.length ? "  " + timeParts.join("  ") : "";
+        
+        const subStr = task.subTaskIds?.length ? dim(` (+${task.subTaskIds.length} subtasks)`) : "";
+        
+        const dueInfo = task.dueWithTime 
+          ? dim(` [due: ${fmtTime(task.dueWithTime)}]`)
+          : task.dueDay 
+            ? dim(` [due: ${task.dueDay}]`)
+            : "";
+        
+        console.log(`  ${doneIcon} ${bold(task.id)} ${task.title}${subStr}${timeStr}${dueInfo} ${dim(`[${pname}]`)}`);
+      }
+      console.log();
+    } catch (e) {
+      console.error(red(`Error: ${e instanceof Error ? e.message : e}`));
+      process.exit(1);
+    }
+  });
 
 taskCommand
   .command("list")

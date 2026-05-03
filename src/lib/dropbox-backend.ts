@@ -147,6 +147,16 @@ export class DropboxBackend implements Backend {
       results.push(this.mapTaskFromRaw(task));
     }
     
+    if (filters?.today && todayTag?.taskIds) {
+      const todayTagTaskIds = todayTag.taskIds as string[];
+      const orderMap = new Map(todayTagTaskIds.map((id, i) => [id, i]));
+      results.sort((a, b) => {
+        const aOrder = orderMap.get(a.id) ?? Infinity;
+        const bOrder = orderMap.get(b.id) ?? Infinity;
+        return aOrder - bOrder;
+      });
+    }
+    
     return results;
   }
   
