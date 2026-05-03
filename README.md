@@ -30,6 +30,8 @@ This CLI supports two backend modes:
 | **Assign tags** | ✅ | ❌ |
 | **Move to project** | ✅ | ❌ |
 | **Set time estimate** | ✅ | ❌ |
+| **Set due date** | ✅ | ❌ |
+| **Create/manage subtasks** | ✅ | ❌ |
 | **View counters** | ❌ | ✅ |
 | **View notes** | ❌ | ✅ |
 | **App must be open** | ✅ Yes | ❌ No |
@@ -156,6 +158,7 @@ sp task list
 | `sp task list` | List all incomplete tasks |
 | `sp task list --today` | Tasks due today or tagged TODAY |
 | `sp task list --past-due` | Overdue incomplete tasks |
+| `sp task list --include-subtasks` | Include subtasks in results |
 | `sp task list --done` | Show completed tasks |
 | `sp task list --archived` | Show archived tasks |
 | `sp task list -p <id>` | Filter by project ID |
@@ -178,14 +181,19 @@ sp task list
 ### Task Update Options
 
 ```bash
-sp task update <id> -t "New title"           # Change title
-sp task update <id> -p <project-id>          # Move to project
-sp task update <id> -e 2h                    # Set estimate (2 hours)
-sp task update <id> --tag TODAY,Urgent       # Set tags (replaces existing)
-sp task update <id> --add-tag TODAY          # Add tag (keeps existing)
-sp task update <id> --remove-tag Urgent      # Remove tag
-sp task update <id> --done                   # Mark as done
-sp task update <id> --undone                 # Mark as not done
+sp task update <id> -t "New title"              # Change title
+sp task update <id> -p <project-id>             # Move to project
+sp task update <id> -e 2h                       # Set estimate (2 hours)
+sp task update <id> --tag TODAY,Urgent          # Set tags (replaces existing)
+sp task update <id> --add-tag TODAY             # Add tag (keeps existing)
+sp task update <id> --remove-tag Urgent         # Remove tag
+sp task update <id> --done                      # Mark as done
+sp task update <id> --undone                    # Mark as not done
+sp task update <id> --due 2026-05-03            # Set due date
+sp task update <id> --due-with "2026-05-03T14:00:00"  # Set due date + time
+sp task update <id> --clear-due                 # Remove due date
+sp task update <id> --parent <parent-id>        # Convert to subtask
+sp task update <id> --clear-parent              # Convert back to main task
 ```
 
 ### Projects & Tags
@@ -232,14 +240,26 @@ sp task list --json --full
 # Create task with project and estimate
 sp task create "Review PR" -p Work -e 30m --tag Urgent
 
+# Create task with due date
+sp task create "Submit report" --due 2026-05-10 -e 2h
+
+# Create subtask
+sp task create "Write introduction" --parent abc123 -e 30m
+
 # Start working on a task
 sp task start abc123
 
 # Move task to another project and add tag
 sp task update abc123 -p "Side Project" --add-tag TODAY
 
+# Set due date on existing task
+sp task update abc123 --due 2026-05-03
+
 # Get tasks as JSON for scripting
 sp task list --today --json | jq '.[] | .title'
+
+# List all tasks including subtasks
+sp task list --include-subtasks
 
 # Check current status
 sp status
