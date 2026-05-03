@@ -486,7 +486,9 @@ taskCommand
   .option("-n, --notes <notes>", "Task notes")
   .option("-e, --estimate <estimate>", "Time estimate (e.g., '2h', '30m')")
   .option("--tag <tag>", "Tag ID (comma-separated for multiple)")
-  .action(async (title: string, options: { project?: string; notes?: string; estimate?: string; tag?: string }) => {
+  .option("--due <YYYY-MM-DD>", "Due date (e.g., '2026-05-03')")
+  .option("--due-with <ISO-timestamp>", "Due date with time (e.g., '2026-05-03T14:00:00')")
+  .action(async (title: string, options: { project?: string; notes?: string; estimate?: string; tag?: string; due?: string; dueWith?: string }) => {
     try {
       const backend = getBackend();
       
@@ -507,6 +509,8 @@ taskCommand
         notes: options.notes,
         timeEstimate,
         tagIds,
+        dueDay: options.due,
+        dueWithTime: options.dueWith ? new Date(options.dueWith).getTime() : undefined,
       });
       
       console.log(green(`✓ Created task ${bold(task.id)}`));
@@ -529,7 +533,10 @@ taskCommand
   .option("--remove-tag <tag>", "Remove tag ID(s) - comma-separated")
   .option("--done", "Mark as done")
   .option("--undone", "Mark as not done")
-  .action(async (id: string, options: { title?: string; notes?: string; project?: string; estimate?: string; tag?: string; addTag?: string; removeTag?: string; done?: boolean; undone?: boolean }) => {
+  .option("--due <YYYY-MM-DD>", "Due date (e.g., '2026-05-03')")
+  .option("--due-with <ISO-timestamp>", "Due date with time (e.g., '2026-05-03T14:00:00')")
+  .option("--clear-due", "Clear due date fields")
+  .action(async (id: string, options: { title?: string; notes?: string; project?: string; estimate?: string; tag?: string; addTag?: string; removeTag?: string; done?: boolean; undone?: boolean; due?: string; dueWith?: string; clearDue?: boolean }) => {
     try {
       const backend = getBackend();
       
@@ -546,6 +553,13 @@ taskCommand
       if (options.estimate) updates.timeEstimate = parseDuration(options.estimate);
       if (options.done) updates.isDone = true;
       if (options.undone) updates.isDone = false;
+      
+      if (options.due) updates.dueDay = options.due;
+      if (options.dueWith) updates.dueWithTime = new Date(options.dueWith).getTime();
+      if (options.clearDue) {
+        updates.dueDay = null as unknown as string;
+        updates.dueWithTime = null as unknown as number;
+      }
       
       if (options.tag) {
         updates.tagIds = options.tag.split(",").map((t) => t.trim());

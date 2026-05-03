@@ -26,8 +26,8 @@ interface ApiTask {
   timeEstimate?: number;
   timeSpent?: number;
   timeSpentOnDay?: Record<string, number>;
-  dueDay?: string;
-  dueWithTime?: number;
+  dueDay?: string | null;
+  dueWithTime?: number | null;
   parentId?: string;
   subTaskIds?: string[];
   tagIds?: string[];

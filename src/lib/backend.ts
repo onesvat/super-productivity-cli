@@ -28,8 +28,8 @@ export interface TaskUpdateData {
   projectId?: string;
   timeEstimate?: number;
   tagIds?: string[];
-  dueDay?: string;
-  dueWithTime?: number;
+  dueDay?: string | null;
+  dueWithTime?: number | null;
 }
 
 export interface Task {
@@ -41,8 +41,8 @@ export interface Task {
   timeEstimate?: number;
   timeSpent?: number;
   timeSpentOnDay?: Record<string, number>;
-  dueDay?: string;
-  dueWithTime?: number;
+  dueDay?: string | null;
+  dueWithTime?: number | null;
   parentId?: string;
   subTaskIds?: string[];
   tagIds?: string[];
