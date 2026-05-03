@@ -17,8 +17,9 @@ import { Backend } from "./lib/backend.js";
 import { ApiBackend } from "./lib/api-backend.js";
 import { DropboxBackend } from "./lib/dropbox-backend.js";
 import { checkHealth, DEFAULT_API_URL } from "./lib/api-client.js";
+import pkg from "../package.json" with { type: "json" };
 
-const VERSION = "1.2.0";
+const VERSION = pkg.version;
 
 let selectedBackend: Backend | null = null;
 
