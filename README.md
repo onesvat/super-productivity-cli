@@ -177,6 +177,7 @@ sp task list
 | `sp task stop` | Stop current task |
 | `sp task archive <id>` | Archive a task |
 | `sp task restore <id>` | Restore archived task |
+| `sp task reorder [ids...]` | Reorder tasks for a day (default: today) |
 
 ### Task Update Options
 
@@ -194,6 +195,11 @@ sp task update <id> --due-with "2026-05-03T14:00:00"  # Set due date + time
 sp task update <id> --clear-due                 # Remove due date
 sp task update <id> --parent <parent-id>        # Convert to subtask
 sp task update <id> --clear-parent              # Convert back to main task
+
+# Reorder tasks for today
+sp task reorder                                # Show current order with IDs
+sp task reorder <id1> <id2> <id3> ...           # Set new order
+sp task reorder --day 2026-05-04 <ids...>       # Reorder for specific day
 ```
 
 ### Projects & Tags

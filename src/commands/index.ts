@@ -782,6 +782,71 @@ taskCommand
     }
   });
 
+taskCommand
+  .command("reorder [ids...]")
+  .description("Reorder tasks for a specific day (default: today)")
+  .option("--day <YYYY-MM-DD>", "Day to reorder (default: today)")
+  .action(async (ids: string[], options: { day?: string }) => {
+    try {
+      const backend = getBackend();
+      
+      if (backend.isReadOnly) {
+        console.error(red(READ_ONLY_ERROR));
+        process.exit(1);
+      }
+      
+      const day = options.day || todayStr();
+      
+      const allTasks = await backend.getTasks({ includeDone: false });
+      const dayTasks = allTasks.filter(t => t.dueDay === day);
+      const currentIds = dayTasks.map(t => t.id).sort();
+      const inputIds = [...ids].sort();
+      
+      if (dayTasks.length === 0) {
+        console.error(red(`No tasks with due ${day}`));
+        process.exit(1);
+      }
+      
+      if (ids.length === 0) {
+        console.log(dim(`Current order for ${day}:`));
+        for (const task of dayTasks) {
+          console.log(`  ${task.id} ${task.title}`);
+        }
+        process.exit(0);
+      }
+      
+      const currentSet = new Set(currentIds);
+      const inputSet = new Set(inputIds);
+      
+      const missing = currentIds.filter(id => !inputSet.has(id));
+      const extra = inputIds.filter(id => !currentSet.has(id));
+      
+      if (missing.length > 0 || extra.length > 0) {
+        console.error(red(`Validation failed for ${day}:`));
+        if (missing.length > 0) {
+          console.error(red(`  Missing: ${missing.join(", ")}`));
+        }
+        if (extra.length > 0) {
+          console.error(red(`  Extra: ${extra.join(", ")}`));
+        }
+        process.exit(1);
+      }
+      
+      for (const id of currentIds) {
+        await backend.updateTask(id, { dueDay: null });
+      }
+      
+      for (const id of ids) {
+        await backend.updateTask(id, { dueDay: day });
+      }
+      
+      console.log(green(`✓ Reordered ${ids.length} tasks for ${day}`));
+    } catch (e) {
+      console.error(red(`Error: ${e instanceof Error ? e.message : e}`));
+      process.exit(1);
+    }
+  });
+
 function parseDuration(input: string): number {
   const match = input.match(/^(\d+)(h|m)$/i);
   if (!match) {
