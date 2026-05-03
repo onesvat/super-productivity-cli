@@ -28,7 +28,7 @@ interface ApiTask {
   timeSpentOnDay?: Record<string, number>;
   dueDay?: string | null;
   dueWithTime?: number | null;
-  parentId?: string;
+  parentId?: string | null;
   subTaskIds?: string[];
   tagIds?: string[];
   created?: number;
@@ -149,7 +149,7 @@ export class ApiBackend implements Backend {
       filtered = filtered.filter((t) => !t.isDone);
     }
     
-    return filtered.filter((t) => !t.parentId);
+    return filters?.includeSubtasks ? filtered : filtered.filter((t) => !t.parentId);
   }
   
   async getTask(id: string): Promise<Task | null> {
@@ -195,6 +195,7 @@ export class ApiBackend implements Backend {
     if (options?.tagIds) body.tagIds = options.tagIds;
     if (options?.dueDay) body.dueDay = options.dueDay;
     if (options?.dueWithTime) body.dueWithTime = options.dueWithTime;
+    if (options?.parentId) body.parentId = options.parentId;
     
     const task = await apiPost<ApiTask>(this.baseUrl, "/tasks", body);
     return mapTask(task);

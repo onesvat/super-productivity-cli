@@ -10,6 +10,7 @@ export interface TaskFilters {
   source?: "active" | "archived" | "all";
   today?: boolean;
   pastDue?: boolean;
+  includeSubtasks?: boolean;
 }
 
 export interface TaskCreateOptions {
@@ -19,6 +20,7 @@ export interface TaskCreateOptions {
   tagIds?: string[];
   dueDay?: string;
   dueWithTime?: number;
+  parentId?: string;
 }
 
 export interface TaskUpdateData {
@@ -30,6 +32,7 @@ export interface TaskUpdateData {
   tagIds?: string[];
   dueDay?: string | null;
   dueWithTime?: number | null;
+  parentId?: string | null;
 }
 
 export interface Task {
@@ -43,7 +46,7 @@ export interface Task {
   timeSpentOnDay?: Record<string, number>;
   dueDay?: string | null;
   dueWithTime?: number | null;
-  parentId?: string;
+  parentId?: string | null;
   subTaskIds?: string[];
   tagIds?: string[];
   created?: number;

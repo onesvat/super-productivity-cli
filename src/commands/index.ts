@@ -315,11 +315,12 @@ taskCommand
   .option("-d, --done", "Show done tasks")
   .option("--today", "Only today tasks (tagged or due today)")
   .option("--past-due", "Only past due tasks")
+  .option("--include-subtasks", "Include subtasks in results")
   .option("--archived", "Show archived tasks")
   .option("--json", "Output as JSON")
   .option("--ndjson", "Output as newline-delimited JSON")
   .option("--full", "Output full entity data")
-  .action(async (options: { project?: string; tag?: string; done?: boolean; today?: boolean; pastDue?: boolean; archived?: boolean; json?: boolean; ndjson?: boolean; full?: boolean }) => {
+  .action(async (options: { project?: string; tag?: string; done?: boolean; today?: boolean; pastDue?: boolean; includeSubtasks?: boolean; archived?: boolean; json?: boolean; ndjson?: boolean; full?: boolean }) => {
     try {
       const backend = getBackend();
       
@@ -329,6 +330,7 @@ taskCommand
         includeDone: options.done,
         today: options.today,
         pastDue: options.pastDue,
+        includeSubtasks: options.includeSubtasks,
         source: options.archived ? "archived" : "active",
       };
       
@@ -380,13 +382,15 @@ taskCommand
         
         const subStr = task.subTaskIds?.length ? dim(` (+${task.subTaskIds.length} subtasks)`) : "";
         
+        const parentInfo = task.parentId ? dim(` [sub of: ${task.parentId}]`) : "";
+        
         const dueInfo = task.dueWithTime 
           ? dim(` [due: ${fmtTime(task.dueWithTime)}]`)
           : task.dueDay 
             ? dim(` [due: ${task.dueDay}]`)
             : "";
         
-        console.log(`  ${todayIcon}${doneIcon} ${bold(task.id)} ${task.title}${subStr}${timeStr}${dueInfo} ${dim(`[${pname}]`)}`);
+        console.log(`  ${todayIcon}${doneIcon} ${bold(task.id)} ${task.title}${subStr}${parentInfo}${timeStr}${dueInfo} ${dim(`[${pname}]`)}`);
       }
       console.log();
     } catch (e) {
@@ -488,7 +492,8 @@ taskCommand
   .option("--tag <tag>", "Tag ID (comma-separated for multiple)")
   .option("--due <YYYY-MM-DD>", "Due date (e.g., '2026-05-03')")
   .option("--due-with <ISO-timestamp>", "Due date with time (e.g., '2026-05-03T14:00:00')")
-  .action(async (title: string, options: { project?: string; notes?: string; estimate?: string; tag?: string; due?: string; dueWith?: string }) => {
+  .option("--parent <parent-id>", "Create as subtask of given parent task")
+  .action(async (title: string, options: { project?: string; notes?: string; estimate?: string; tag?: string; due?: string; dueWith?: string; parent?: string }) => {
     try {
       const backend = getBackend();
       
@@ -511,6 +516,7 @@ taskCommand
         tagIds,
         dueDay: options.due,
         dueWithTime: options.dueWith ? new Date(options.dueWith).getTime() : undefined,
+        parentId: options.parent,
       });
       
       console.log(green(`✓ Created task ${bold(task.id)}`));
@@ -536,7 +542,9 @@ taskCommand
   .option("--due <YYYY-MM-DD>", "Due date (e.g., '2026-05-03')")
   .option("--due-with <ISO-timestamp>", "Due date with time (e.g., '2026-05-03T14:00:00')")
   .option("--clear-due", "Clear due date fields")
-  .action(async (id: string, options: { title?: string; notes?: string; project?: string; estimate?: string; tag?: string; addTag?: string; removeTag?: string; done?: boolean; undone?: boolean; due?: string; dueWith?: string; clearDue?: boolean }) => {
+  .option("--parent <parent-id>", "Set parent task (convert to subtask)")
+  .option("--clear-parent", "Remove parent (convert to main task)")
+  .action(async (id: string, options: { title?: string; notes?: string; project?: string; estimate?: string; tag?: string; addTag?: string; removeTag?: string; done?: boolean; undone?: boolean; due?: string; dueWith?: string; clearDue?: boolean; parent?: string; clearParent?: boolean }) => {
     try {
       const backend = getBackend();
       
@@ -560,6 +568,9 @@ taskCommand
         updates.dueDay = null as unknown as string;
         updates.dueWithTime = null as unknown as number;
       }
+      
+      if (options.parent) updates.parentId = options.parent;
+      if (options.clearParent) updates.parentId = null as unknown as string;
       
       if (options.tag) {
         updates.tagIds = options.tag.split(",").map((t) => t.trim());
