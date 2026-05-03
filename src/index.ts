@@ -17,9 +17,13 @@ import { Backend } from "./lib/backend.js";
 import { ApiBackend } from "./lib/api-backend.js";
 import { DropboxBackend } from "./lib/dropbox-backend.js";
 import { checkHealth, DEFAULT_API_URL } from "./lib/api-client.js";
-import pkg from "../package.json" with { type: "json" };
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 
-const VERSION = pkg.version;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const VERSION = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8")).version;
 
 let selectedBackend: Backend | null = null;
 
