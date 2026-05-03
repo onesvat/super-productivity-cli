@@ -310,14 +310,15 @@ export const taskCommand = new Command("task")
 taskCommand
   .command("today")
   .description("List today's tasks in TODAY tag order")
+  .option("-d, --done", "Show done tasks")
   .option("--json", "Output as JSON")
   .option("--ndjson", "Output as newline-delimited JSON")
   .option("--full", "Output full entity data")
-  .action(async (options: { json?: boolean; ndjson?: boolean; full?: boolean }) => {
+  .action(async (options: { done?: boolean; json?: boolean; ndjson?: boolean; full?: boolean }) => {
     try {
       const backend = getBackend();
       
-      const tasks = await backend.getTasks({ today: true, includeDone: true });
+      const tasks = await backend.getTasks({ today: true, includeDone: options.done });
       
       const outputOpts: OutputOptions = { json: options.json, ndjson: options.ndjson, full: options.full };
       
